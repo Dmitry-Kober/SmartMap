@@ -16,5 +16,6 @@ public interface IShardDAO {
 
     boolean addUpdatingEntry(Timestamp timestamp, IKey key, String filePath);
     boolean commitEntry(Timestamp timestamp, IKey key);
+    boolean markEntriesAsRemoved(IKey key);
 
 }

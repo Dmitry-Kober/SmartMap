@@ -1,7 +1,16 @@
 package org.smartsoftware.request.manager;
 
+import org.hamcrest.Matchers;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.smartsoftware.domain.communication.CommunicationChain;
+import org.smartsoftware.domain.communication.request.GetRequest;
+import org.smartsoftware.domain.communication.request.IRequest;
+import org.smartsoftware.domain.communication.request.PutRequest;
+import org.smartsoftware.domain.communication.response.SuccessResponse;
+import org.smartsoftware.domain.communication.response.ValueResponse;
+import org.smartsoftware.domain.data.ByteArrayValue;
+import org.smartsoftware.domain.data.StringKey;
 import org.smartsoftware.request.manager.datasource.IShardDAO;
 import org.smartsoftware.request.manager.datasource.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,9 +24,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.*;
+import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -33,32 +43,77 @@ public class HashBasedRequestManagerTest {
 
     @Test
     public void testFreshInitializationProcess() throws IllegalAccessException, NoSuchFieldException, SQLException {
-        Field shardsField = HashBasedRequestManager.class.getDeclaredField("shards");
-        shardsField.setAccessible(true);
+        List<Integer> result = getFromDb(
+                "SELECT COUNT(*) FROM ENTRIES where status != 'COMMITTED';",
+                (resultSet, i) -> resultSet.getInt(1)
+        );
+        assertThat(result, contains(0));
+    }
 
-        Map<String, Shard> shards = (Map<String, Shard>) shardsField.get(requestManager);
 
-        for (Map.Entry<String, Shard> shardEntry : shards.entrySet()) {
-            IShardDAO shardDAO = shardEntry.getValue().getDao();
+    @Test
+    public void shouldAddOneKeyValuePair() {
+        IRequest putRequest = new PutRequest(
+                new StringKey("test_key_addition"),
+                new ByteArrayValue("test_key_addition".getBytes())
+        );
 
-            if (shardDAO instanceof SqliteShardDAO) {
-                SqliteShardDAO sqliteShardDao = (SqliteShardDAO) shardDAO;
-                Field jdbcTemplateField = sqliteShardDao.getClass().getSuperclass().getDeclaredField("jdbcTemplate");
-                jdbcTemplateField.setAccessible(true);
+        CommunicationChain communicationChain = requestManager.onRequest(
+                new CommunicationChain(putRequest)
+        );
 
-                JdbcTemplate shardJdbcTemplate = (JdbcTemplate) jdbcTemplateField.get(sqliteShardDao);
-                List<Integer> result = shardJdbcTemplate.query("SELECT COUNT(*) FROM ENTRIES where status != 'COMMITTED';", new RowMapper<Integer>() {
-                    @Override
-                    public Integer mapRow(ResultSet resultSet, int i) throws SQLException {
-                        return resultSet.getInt(1);
-                    }
-                });
-                assertThat(result, hasSize(1));
-                assertThat(result, hasItem(0));
+        assertThat(communicationChain.getResponse(), allOf(notNullValue(), instanceOf(SuccessResponse.class)));
+
+        List<Integer> numberOfEntriesInDb = getFromDb("SELECT COUNT(*) FROM ENTITIES;", (resultSet, i) -> resultSet.getInt(1));
+        assertThat(numberOfEntriesInDb, hasItem(greaterThanOrEqualTo(1)));
+    }
+
+    @Test
+    public void testGetExistingValue() {
+        IRequest putRequest = new PutRequest(
+                new StringKey("test_key_get"),
+                new ByteArrayValue("test_value_get".getBytes())
+        );
+        requestManager.onRequest(new CommunicationChain(putRequest));
+
+        IRequest getRequest = new GetRequest(new StringKey("test_key_get"));
+        CommunicationChain communicationChain = requestManager.onRequest(new CommunicationChain(getRequest));
+        assertThat(
+                communicationChain.getResponse(),
+                allOf(notNullValue(), instanceOf(ValueResponse.class))
+        );
+        assertThat(
+                new String(
+                        ((ValueResponse) communicationChain.getResponse()).getValue().get().orElse("Nan".getBytes())
+                ),
+                equalTo("test_value_get")
+        );
+
+
+    }
+
+    private <T> List<T> getFromDb(String query, RowMapper<T> rowMapper) {
+        try {
+            Field shardsField = HashBasedRequestManager.class.getDeclaredField("shards");
+            shardsField.setAccessible(true);
+
+            Map<String, Shard> shards = (Map<String, Shard>) shardsField.get(requestManager);
+            if (shards.size() != 1) {
+                throw new IllegalStateException("Unexpected shards' configuration.");
             }
-            else {
-                fail("Unexpected implementation of the IShardDAO met.");
-            }
+
+            Shard shard = shards.entrySet().stream().findFirst().get().getValue();
+            SqliteShardDAO sqliteShardDao = (SqliteShardDAO) shard.getDao();
+
+            Field jdbcTemplateField = sqliteShardDao.getClass().getSuperclass().getDeclaredField("jdbcTemplate");
+            jdbcTemplateField.setAccessible(true);
+
+            JdbcTemplate shardJdbcTemplate = (JdbcTemplate) jdbcTemplateField.get(sqliteShardDao);
+
+            return shardJdbcTemplate.query(query, rowMapper);
+        }
+        catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new RuntimeException(e);
         }
     }
 }

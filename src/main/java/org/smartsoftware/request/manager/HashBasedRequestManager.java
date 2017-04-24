@@ -28,12 +28,6 @@ public class HashBasedRequestManager implements IRequestManager {
 
     private static final Logger LOG = LoggerFactory.getLogger(HashBasedRequestManager.class);
 
-    @Value("file.manipulation.attempt.limit")
-    private int FILE_MANIPULATION_ATTEMPT_LIMIT;
-
-    @Value("file.manipulation.attempt.delay")
-    private long FILE_MANIPULATION_ATTEMPT_DELAY;
-
     private final List<Shard> shards;
 
     HashBasedRequestManager(List<Shard> shards) {
@@ -71,47 +65,21 @@ public class HashBasedRequestManager implements IRequestManager {
             boolean isUpdatingRecordAdded = shard.getDao().addUpdatingEntry(timestamp, requestKey, filePath);
             if ( !isUpdatingRecordAdded ) {
                 LOG.error("Unable to create a write ahead log record for the '{}' key.", requestKey.get());
-                return communicationChain.withEmptyResponse();
-            }
-
-            boolean lockCreated = false;
-            int numberOfAttempts = 0;
-            while (lockCreated || numberOfAttempts == FILE_MANIPULATION_ATTEMPT_LIMIT) {
-                lockCreated = shard.getFileSystem().lockFile(Paths.get(filePath));
-                if ( !lockCreated ) {
-                    numberOfAttempts++;
-                    try {
-                        Thread.sleep(FILE_MANIPULATION_ATTEMPT_DELAY);
-                    }
-                    catch (InterruptedException e) {
-                        LOG.warn("A waiting thread for locking a file for the '{}' key is interrupted.", requestKey.get());
-                        return communicationChain.withEmptyResponse();
-                    }
-                }
-            }
-
-            if ( !lockCreated ) {
-                LOG.error("Unable to lock a file for the '{}' key.", requestKey.get());
-                return communicationChain.withEmptyResponse();
+                return communicationChain.withFailedResponse();
             }
 
             boolean newFileAdded = shard.getFileSystem().createNewFileWithValue(Paths.get(filePath), putRequest.getValue());
             if ( !newFileAdded ) {
                 LOG.error("Unable to create a new file for the '{}' key.", requestKey.get());
-                return communicationChain.withEmptyResponse();
+                return communicationChain.withFailedResponse();
             }
 
             boolean entryCommitted = shard.getDao().commitEntry(timestamp, requestKey);
             if ( !entryCommitted ) {
                 LOG.error("Unable to commit a white ahead log record for the '{}' key.", requestKey.get());
-                return communicationChain.withEmptyResponse();
+                return communicationChain.withFailedResponse();
             }
 
-            boolean fileUnlocked = shard.getFileSystem().unlockFile(Paths.get(filePath));
-            if ( !fileUnlocked ) {
-                LOG.error("Unable to unlock a file for the '{}' key.", requestKey.get());
-                return communicationChain.withEmptyResponse();
-            }
 
             return communicationChain.withSuccessResponse();
         }
@@ -119,7 +87,12 @@ public class HashBasedRequestManager implements IRequestManager {
             Optional<String> filePath = shard.getDao().getCommittedPathFor(requestKey);
             if (filePath.isPresent()) {
                 IValue value = shard.getFileSystem().getValueFrom(Paths.get(filePath.get()));
-                return communicationChain.withValueResponse(value);
+                if (value.get().isPresent()) {
+                    return communicationChain.withValueResponse(value);
+                }
+                else {
+                    return communicationChain.withEmptyResponse();
+                }
             }
             else {
                 return communicationChain.withEmptyResponse();
@@ -130,24 +103,23 @@ public class HashBasedRequestManager implements IRequestManager {
             if ( !filePath.isPresent() ) {
                 return communicationChain.withSuccessResponse();
             }
-
-            boolean lockCreated = false;
-            int numberOfAttempts = 0;
-            while (lockCreated || numberOfAttempts == FILE_MANIPULATION_ATTEMPT_LIMIT) {
-                lockCreated = shard.getFileSystem().lockFile(Paths.get(filePath.get()));
-                if ( !lockCreated ) {
-                    numberOfAttempts++;
-                    try {
-                        Thread.sleep(FILE_MANIPULATION_ATTEMPT_DELAY);
-                    }
-                    catch (InterruptedException e) {
-                        LOG.warn("A waiting thread for adding a value-file for the '{}' key is interrupted.", requestKey.get());
-                        return communicationChain.withEmptyResponse();
-                    }
-                }
+            boolean entriesMarkedAsRemoved = shard.getDao().markEntriesAsRemoved(requestKey);
+            if ( !entriesMarkedAsRemoved ) {
+                LOG.error("Unable to mark entries as removed for the '{}' key.", requestKey.get());
+                return communicationChain.withFailedResponse();
             }
-            shard.getFileSystem().removeAllFilesWithMask(filePath.get());
 
+            boolean filesAreRemoved = shard.getFileSystem().removeAllFilesWithMask(Paths.get(shard.getPath()), String.valueOf(requestKey.get()));
+            if ( !filesAreRemoved ) {
+                LOG.error("Unable to remove files for the '{}' key.", requestKey.get());
+                return communicationChain.withFailedResponse();
+            }
+
+            return communicationChain.withSuccessResponse();
+        }
+        else {
+            LOG.error("Unknown reques is received.");
+            return communicationChain.withFailedResponse();
         }
     }
 

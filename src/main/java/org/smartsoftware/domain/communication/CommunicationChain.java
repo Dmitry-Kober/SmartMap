@@ -1,10 +1,7 @@
 package org.smartsoftware.domain.communication;
 
 import org.smartsoftware.domain.communication.request.IRequest;
-import org.smartsoftware.domain.communication.response.EmptyReponse;
-import org.smartsoftware.domain.communication.response.IResponse;
-import org.smartsoftware.domain.communication.response.SuccessResponse;
-import org.smartsoftware.domain.communication.response.ValueResponse;
+import org.smartsoftware.domain.communication.response.*;
 import org.smartsoftware.domain.data.IValue;
 
 /**
@@ -14,6 +11,7 @@ public class CommunicationChain {
 
     private static final IResponse EMPTY_RESPONSE = new EmptyReponse();
     private static final IResponse SUCCESS_RESPONSE = new SuccessResponse();
+    private static final IResponse FAILED_RESPONSE = new FailedResponse();
 
     private final IRequest request;
     private IResponse response;
@@ -46,6 +44,11 @@ public class CommunicationChain {
 
     public CommunicationChain withValueResponse(IValue value) {
         this.setResponse(new ValueResponse(value));
+        return this;
+    }
+
+    public CommunicationChain withFailedResponse() {
+        this.setResponse(FAILED_RESPONSE);
         return this;
     }
 }

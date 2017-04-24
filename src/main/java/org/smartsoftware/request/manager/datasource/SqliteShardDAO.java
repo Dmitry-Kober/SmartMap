@@ -21,21 +21,24 @@ public class SqliteShardDAO extends JdbcDaoSupport implements IShardDAO {
             "SELECT path " +
             "FROM ENTRIES " +
             "WHERE entry_key = ? AND status = 'COMMITTED'" +
-            "ORDER BY asAt DESC";
+            "ORDER BY asAt DESC " +
+            "LIMIT 1";
 
     private static final String CREATE_TABLE_IF_NOT_EXISTS = "CREATE TABLE IF NOT EXISTS ENTRIES(" +
             "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
             "entry_key TEXT NOT NULL, " +
             "asAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
             "path TEXT NOT NULL, " +
-            "status TEXT CHECK(status IN ('UPDATING', 'COMMITTED', )) " +
+            "status TEXT CHECK(status IN ('UPDATING', 'COMMITTED', 'REMOVED')) " +
             ");";
 
-    private static final String ADD_UPDATING_ENTRY = "INSERT INTO ENTRIES (entry_key, asAt, path) VALUES (?, ?, ?, 'UPDATING');";
+    private static final String ADD_UPDATING_ENTRY = "INSERT INTO ENTRIES (entry_key, asAt, path, status) VALUES (?, ?, ?, 'UPDATING');";
 
-    private static final String COMMIT_ENTRY = "UPDATE ENTRIES SET status = 'COMMITTED' WHERE entry_key = ? AND timestamp = ? AND status = 'UPDATING';";
+    private static final String COMMIT_ENTRY = "UPDATE ENTRIES SET status = 'COMMITTED' WHERE entry_key = ? AND asAt = ? AND status = 'UPDATING';";
 
     private static final String REMOVE_ALL_UNCOMMITTED_ENTRIES = "DELETE FROM ENTRIES WHERE status != 'COMMITTED';";
+
+    private static final String MARK_ENTRIES_AS_REMOVED = "UPDATE ENTRIES SET status = 'REMOVED' WHERE entry_key = ?;";
 
     private Path shardPath;
 
@@ -83,6 +86,12 @@ public class SqliteShardDAO extends JdbcDaoSupport implements IShardDAO {
 
     public boolean commitEntry(Timestamp timestamp, IKey key) {
         int updatedRecords = getJdbcTemplate().update(COMMIT_ENTRY, key.get(), timestamp);
+        return updatedRecords > 0;
+    }
+
+    @Override
+    public boolean markEntriesAsRemoved(IKey key) {
+        int updatedRecords = getJdbcTemplate().update(MARK_ENTRIES_AS_REMOVED, key.get());
         return updatedRecords > 0;
     }
 }

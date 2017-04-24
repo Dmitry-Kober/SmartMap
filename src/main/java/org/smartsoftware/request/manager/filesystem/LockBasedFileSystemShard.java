@@ -123,21 +123,12 @@ public class LockBasedFileSystemShard implements IFileSystemShard {
 
     @Override
     public IValue getValueFrom(Path path) {
-        // check if a lock exists
-        String absolutePath = path.toFile().getAbsolutePath();
-        Path lockPath = Paths.get(absolutePath.substring(absolutePath.lastIndexOf(".")) + ".lock");
-        boolean lockExists = Files.exists(lockPath);
-
-        if ( lockExists ) {
-            return new ByteArrayValue();
-        }
-
         byte[] data;
         try {
             data = Files.readAllBytes(path);
         }
         catch (IOException e) {
-            LOG.error("Unable to read the '{}' file.", absolutePath, e);
+            LOG.error("Unable to read the '{}' file.", path.toFile().getAbsolutePath(), e);
             return new ByteArrayValue();
         }
 
