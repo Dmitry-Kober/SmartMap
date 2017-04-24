@@ -1,6 +1,6 @@
-package org.smartsoftware.request.domain;
+package org.smartsoftware.domain.communication.request;
 
-import org.smartsoftware.domain.IKey;
+import org.smartsoftware.domain.data.IKey;
 
 /**
  * Created by Dmitry on 23.04.2017.

@@ -1,6 +1,6 @@
 package org.smartsoftware.request.manager.filesystem;
 
-import org.smartsoftware.domain.IValue;
+import org.smartsoftware.domain.data.IValue;
 
 import java.nio.file.Path;
 
@@ -11,7 +11,11 @@ public interface IFileSystemShard {
 
     void init();
 
-    boolean createNewFileWithValue(IValue value);
+    boolean lockFile(Path path);
+    boolean unlockFile(Path path);
 
-    IValue getValueFrom(Path filePath);
+    boolean createNewFileWithValue(Path path, IValue value);
+    boolean removeAllFilesWithMask(Path shardPath, String fileNameMask);
+
+    IValue getValueFrom(Path path);
 }

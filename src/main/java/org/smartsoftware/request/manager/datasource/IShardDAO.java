@@ -1,8 +1,7 @@
 package org.smartsoftware.request.manager.datasource;
 
-import org.smartsoftware.domain.IKey;
+import org.smartsoftware.domain.data.IKey;
 
-import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.util.Optional;
 
@@ -15,7 +14,7 @@ public interface IShardDAO {
 
     Optional<String> getCommittedPathFor(IKey key);
 
-    boolean addUpdatingEntry(Timestamp timestamp, IKey key, String metaData);
+    boolean addUpdatingEntry(Timestamp timestamp, IKey key, String filePath);
     boolean commitEntry(Timestamp timestamp, IKey key);
 
 }

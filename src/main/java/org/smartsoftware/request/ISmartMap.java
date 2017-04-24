@@ -1,8 +1,8 @@
 package org.smartsoftware.request;
 
-import org.smartsoftware.domain.Entry;
-import org.smartsoftware.domain.IKey;
-import org.smartsoftware.domain.IValue;
+import org.smartsoftware.domain.data.Entry;
+import org.smartsoftware.domain.data.IKey;
+import org.smartsoftware.domain.data.IValue;
 
 import java.util.Collection;
 

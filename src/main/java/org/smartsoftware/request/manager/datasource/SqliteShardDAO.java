@@ -2,7 +2,7 @@ package org.smartsoftware.request.manager.datasource;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.smartsoftware.domain.IKey;
+import org.smartsoftware.domain.data.IKey;
 import org.springframework.jdbc.core.support.JdbcDaoSupport;
 
 import javax.sql.DataSource;
@@ -28,7 +28,7 @@ public class SqliteShardDAO extends JdbcDaoSupport implements IShardDAO {
             "entry_key TEXT NOT NULL, " +
             "asAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
             "path TEXT NOT NULL, " +
-            "status TEXT CHECK(status IN ('UPDATING', 'COMMITTED')) " +
+            "status TEXT CHECK(status IN ('UPDATING', 'COMMITTED', )) " +
             ");";
 
     private static final String ADD_UPDATING_ENTRY = "INSERT INTO ENTRIES (entry_key, asAt, path) VALUES (?, ?, ?, 'UPDATING');";

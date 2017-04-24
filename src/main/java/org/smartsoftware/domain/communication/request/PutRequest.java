@@ -1,13 +1,12 @@
-package org.smartsoftware.request.domain;
+package org.smartsoftware.domain.communication.request;
 
-import org.smartsoftware.domain.IKey;
-import org.smartsoftware.domain.IValue;
-import org.smartsoftware.request.manager.IRequestManager;
+import org.smartsoftware.domain.data.IKey;
+import org.smartsoftware.domain.data.IValue;
 
 /**
  * Created by Dmitry on 23.04.2017.
  */
-public class PutRequest implements IRequest{
+public class PutRequest implements IRequest {
 
     private final IKey key;
     private final IValue value;
