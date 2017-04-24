@@ -23,17 +23,30 @@
     </bean>
 
     <bean id="hashBasedRequestManager" class="org.smartsoftware.request.manager.HashBasedRequestManager">
-        <constructor-arg name="dataLocationRoot" value="${data.location.root}"/>
-        <constructor-arg name="shards">
-            <util:map id="sqliteDataSources" key-type="java.lang.String" value-type="org.apache.commons.dbcp.BasicDataSource">
+        <constructor-arg index="0">
+            <util:map id="sqliteDataSources" key-type="java.lang.String" value-type="org.smartsoftware.request.manager.datasource.IShardDAO">
                 <entry key="${shard1.datasource.path}">
-                    <bean class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close" lazy-init="true">
-                        <property name="driverClassName" value="org.sqlite.JDBC"/>
-                        <property name="url" value="${shard1.datasource.url}"/>
-                        <property name="initialSize" value="1"/>
-                        <property name="maxActive" value="1"/>
-                        <property name="maxIdle" value="1"/>
-                        <property name="poolPreparedStatements" value="true"/>
+                    <bean class="org.smartsoftware.request.manager.Shard">
+                        <constructor-arg index="0">
+                            <bean class="org.smartsoftware.request.manager.datasource.SqliteShardDAO">
+                                <constructor-arg index="0" value="${shard1.datasource.path}"/>
+                                <constructor-arg index="1">
+                                    <bean class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close" lazy-init="true">
+                                        <property name="driverClassName" value="org.sqlite.JDBC"/>
+                                        <property name="url" value="${shard1.datasource.url}"/>
+                                        <property name="initialSize" value="1"/>
+                                        <property name="maxActive" value="1"/>
+                                        <property name="maxIdle" value="1"/>
+                                        <property name="poolPreparedStatements" value="true"/>
+                                    </bean>
+                                </constructor-arg>
+                            </bean>
+                        </constructor-arg>
+                        <constructor-arg index="1">
+                            <bean class="org.smartsoftware.request.manager.filesystem.LockBasedFileSystemShard">
+                                <constructor-arg index="0" value="${shard1.datasource.path}"/>
+                            </bean>
+                        </constructor-arg>
                     </bean>
                 </entry>
             </util:map>

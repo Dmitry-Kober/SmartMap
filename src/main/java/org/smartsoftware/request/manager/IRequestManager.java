@@ -8,6 +8,8 @@ import java.util.concurrent.BlockingQueue;
  */
 public interface IRequestManager {
 
+    void init();
+
 
 
 
