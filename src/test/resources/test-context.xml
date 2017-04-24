@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context.xsd
+        http://www.springframework.org/schema/util
+        http://www.springframework.org/schema/util/spring-util.xsd">
+
+    <context:annotation-config/>
+    <context:component-scan base-package="org.smartsoftware"/>
+
+    <bean class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+        <property name="locations">
+            <list>
+                <value>classpath:configuration.properties</value>
+                <value>classpath:datasource.properties</value>
+            </list>
+        </property>
+    </bean>
+
+    <bean id="hashBasedRequestManager" class="org.smartsoftware.request.manager.HashBasedRequestManager">
+        <constructor-arg name="dataLocationRoot" value="${data.location.root}"/>
+        <constructor-arg name="shards">
+            <util:map id="sqliteDataSources" key-type="java.lang.String" value-type="org.apache.commons.dbcp.BasicDataSource">
+                <entry key="${shard1.datasource.path}">
+                    <bean class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close" lazy-init="true">
+                        <property name="driverClassName" value="org.sqlite.JDBC"/>
+                        <property name="url" value="${shard1.datasource.url}"/>
+                        <property name="initialSize" value="1"/>
+                        <property name="maxActive" value="1"/>
+                        <property name="maxIdle" value="1"/>
+                        <property name="poolPreparedStatements" value="true"/>
+                    </bean>
+                </entry>
+            </util:map>
+        </constructor-arg>
+    </bean>
+
+</beans>
