@@ -3,10 +3,7 @@ package org.smartsoftware.request.manager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.smartsoftware.domain.communication.CommunicationChain;
-import org.smartsoftware.domain.communication.request.GetRequest;
-import org.smartsoftware.domain.communication.request.IRequest;
-import org.smartsoftware.domain.communication.request.PutRequest;
-import org.smartsoftware.domain.communication.request.RemoveRequest;
+import org.smartsoftware.domain.communication.request.*;
 import org.smartsoftware.domain.data.IKey;
 import org.smartsoftware.domain.data.IValue;
 import org.springframework.stereotype.Component;
@@ -15,9 +12,7 @@ import javax.annotation.PostConstruct;
 import java.nio.file.Paths;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Created by Dmitry on 23.04.2017.
@@ -48,13 +43,13 @@ public class HashBasedRequestManager implements IRequestManager {
     public CommunicationChain onRequest(CommunicationChain communicationChain) {
         IRequest request = communicationChain.getRequest();
 
-        IKey requestKey = request.getKey();
-        int requestKeyHash = getHashCodeFrom(requestKey);
-
-        // identify a shard
-        Shard shard = shards.get(requestKeyHash % shards.size());
-
         if (request instanceof PutRequest) {
+            IKey requestKey = request.getKey();
+            int requestKeyHash = getHashCodeFrom(requestKey);
+
+            // identify a shard
+            Shard shard = shards.get(requestKeyHash % shards.size());
+
             PutRequest putRequest = (PutRequest) request;
 
             // business process
@@ -83,6 +78,12 @@ public class HashBasedRequestManager implements IRequestManager {
             return communicationChain.withSuccessResponse();
         }
         else if (request instanceof GetRequest) {
+            IKey requestKey = request.getKey();
+            int requestKeyHash = getHashCodeFrom(requestKey);
+
+            // identify a shard
+            Shard shard = shards.get(requestKeyHash % shards.size());
+
             Optional<String> filePath = shard.getDao().getCommittedPathFor(requestKey);
             if (filePath.isPresent()) {
                 IValue value = shard.getFileSystem().getValueFrom(Paths.get(filePath.get()));
@@ -98,6 +99,12 @@ public class HashBasedRequestManager implements IRequestManager {
             }
         }
         else if (request instanceof RemoveRequest) {
+            IKey requestKey = request.getKey();
+            int requestKeyHash = getHashCodeFrom(requestKey);
+
+            // identify a shard
+            Shard shard = shards.get(requestKeyHash % shards.size());
+
             Optional<String> filePath = shard.getDao().getCommittedPathFor(requestKey);
             if ( !filePath.isPresent() ) {
                 return communicationChain.withSuccessResponse();
@@ -118,6 +125,13 @@ public class HashBasedRequestManager implements IRequestManager {
             }
 
             return communicationChain.withSuccessResponse();
+        }
+        else if (request instanceof ListKeysRequest) {
+            List<String> allLatestCommittedKeys = new LinkedList<>();
+            for (Shard shardItem : shards) {
+                allLatestCommittedKeys.addAll(shardItem.getDao().getAllLatestCommittedKeys());
+            }
+            return communicationChain.withListResponse(allLatestCommittedKeys);
         }
         else {
             LOG.error("Unknown request is received.");

@@ -14,13 +14,13 @@ import java.nio.file.Paths;
 /**
  * Created by dkober on 24.4.2017 г..
  */
-public class LockBasedFileSystemShard implements IFileSystemShard {
+public class FileSystemShard implements IFileSystemShard {
 
-    private static final Logger LOG = LoggerFactory.getLogger(LockBasedFileSystemShard.class);
+    private static final Logger LOG = LoggerFactory.getLogger(FileSystemShard.class);
 
     private String shardLocation;
 
-    LockBasedFileSystemShard(String shardLocation) {
+    FileSystemShard(String shardLocation) {
         this.shardLocation = shardLocation;
     }
 

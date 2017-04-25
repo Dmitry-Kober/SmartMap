@@ -9,8 +9,10 @@ import org.springframework.jdbc.core.support.JdbcDaoSupport;
 import javax.sql.DataSource;
 import java.nio.file.Path;
 import java.sql.*;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Created by Dmitry on 23.04.2017.
@@ -25,6 +27,12 @@ public class SqliteShardDAO extends JdbcDaoSupport implements IShardDAO {
             "WHERE entry_key = ? AND status = 'COMMITTED'" +
             "ORDER BY asAt DESC " +
             "LIMIT 1";
+
+    private static final String GET_ALL_LATEST_COMMITTED_KEYS =
+            "SELECT entry_key, MAX(asAt) asAt " +
+            "FROM ENTRIES " +
+            "WHERE status = 'COMMITTED' " +
+            "GROUP BY entry_key ";
 
     private static final String CREATE_TABLE_IF_NOT_EXISTS = "CREATE TABLE IF NOT EXISTS ENTRIES(" +
             "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -86,6 +94,11 @@ public class SqliteShardDAO extends JdbcDaoSupport implements IShardDAO {
         }
         LOG.error("Unexpected number of paths found for the '{}' key.", key.get());
         return Optional.empty();
+    }
+
+    @Override
+    public List<String> getAllLatestCommittedKeys() {
+        return getJdbcTemplate().query(GET_ALL_LATEST_COMMITTED_KEYS, (resultSet, i) -> resultSet.getString(1));
     }
 
     public boolean addUpdatingEntry(Timestamp timestamp, IKey key, String filePath) {

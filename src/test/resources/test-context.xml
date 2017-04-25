@@ -40,7 +40,7 @@
             </bean>
         </constructor-arg>
         <constructor-arg index="2">
-            <bean class="org.smartsoftware.request.manager.filesystem.LockBasedFileSystemShard">
+            <bean class="org.smartsoftware.request.manager.filesystem.FileSystemShard">
                 <constructor-arg index="0" value="${shard1.datasource.path}"/>
             </bean>
         </constructor-arg>

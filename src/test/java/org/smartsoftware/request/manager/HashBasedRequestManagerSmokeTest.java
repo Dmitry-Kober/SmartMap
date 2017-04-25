@@ -3,11 +3,9 @@ package org.smartsoftware.request.manager;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.smartsoftware.domain.communication.CommunicationChain;
-import org.smartsoftware.domain.communication.request.GetRequest;
-import org.smartsoftware.domain.communication.request.IRequest;
-import org.smartsoftware.domain.communication.request.PutRequest;
-import org.smartsoftware.domain.communication.request.RemoveRequest;
+import org.smartsoftware.domain.communication.request.*;
 import org.smartsoftware.domain.communication.response.EmptyResponse;
+import org.smartsoftware.domain.communication.response.ListResponse;
 import org.smartsoftware.domain.communication.response.SuccessResponse;
 import org.smartsoftware.domain.communication.response.ValueResponse;
 import org.smartsoftware.domain.data.ByteArrayValue;
@@ -39,7 +37,7 @@ public class HashBasedRequestManagerSmokeTest {
 
     @Test
     public void testFreshInitializationProcess() throws IllegalAccessException, NoSuchFieldException, SQLException {
-        List<Integer> result = executeOnDb(
+        List<Integer> result = queryFromDb(
                 "SELECT COUNT(*) FROM ENTRIES where status != 'COMMITTED';",
                 (resultSet, i) -> resultSet.getInt(1)
         );
@@ -60,7 +58,7 @@ public class HashBasedRequestManagerSmokeTest {
 
         assertThat(communicationChain.getResponse(), allOf(notNullValue(), instanceOf(SuccessResponse.class)));
 
-        List<Integer> numberOfEntriesInDb = executeOnDb("SELECT COUNT(*) FROM ENTRIES;", (resultSet, i) -> resultSet.getInt(1));
+        List<Integer> numberOfEntriesInDb = queryFromDb("SELECT COUNT(*) FROM ENTRIES;", (resultSet, i) -> resultSet.getInt(1));
         assertThat(numberOfEntriesInDb, hasItem(greaterThanOrEqualTo(1)));
     }
 
@@ -107,17 +105,31 @@ public class HashBasedRequestManagerSmokeTest {
                 allOf(notNullValue(), instanceOf(SuccessResponse.class))
         );
 
-        List<Integer> numberOfEntriesInDbKeyRemove = executeOnDb(
+        List<Integer> numberOfEntriesInDbKeyRemove = queryFromDb(
                 "SELECT COUNT(*) FROM ENTRIES WHERE entry_key = 'test_key_remove';",
                 (resultSet, i) -> resultSet.getInt(1)
         );
         assertThat(numberOfEntriesInDbKeyRemove, hasItem(greaterThanOrEqualTo(0)));
 
-        List<Integer> numberOfEntriesInDbKeyRemoveOther = executeOnDb(
+        List<Integer> numberOfEntriesInDbKeyRemoveOther = queryFromDb(
                 "SELECT COUNT(*) FROM ENTRIES WHERE entry_key = 'test_key_remove';",
                 (resultSet, i) -> resultSet.getInt(1)
         );
         assertThat(numberOfEntriesInDbKeyRemoveOther, hasItem(greaterThanOrEqualTo(1)));
+    }
+
+    @Test
+    public void shouldListAllLatestCommittedKeys() {
+        requestManager.onRequest(new CommunicationChain(new PutRequest(new StringKey("list_key_1"), new ByteArrayValue("list_value_1".getBytes()))));
+        requestManager.onRequest(new CommunicationChain(new PutRequest(new StringKey("list_key_2"), new ByteArrayValue("list_value_2".getBytes()))));
+        executeOnDb("UPDATE ENTRIES SET status = 'UPDATING' WHERE entry_key = 'list_key_1';");
+
+        IRequest listRequest = new ListKeysRequest();
+        CommunicationChain communicationChain = requestManager.onRequest(new CommunicationChain(listRequest));
+        assertThat(
+                communicationChain.getResponse(),
+                allOf(notNullValue(), instanceOf(ListResponse.class), hasProperty("list", allOf(hasItem("list_key_2"), not(hasItem("list_key_1")))) )
+        );
     }
 
     @Test
@@ -202,7 +214,7 @@ public class HashBasedRequestManagerSmokeTest {
         );
     }
 
-    private <T> List<T> executeOnDb(String query, RowMapper<T> rowMapper) {
+    private <T> List<T> queryFromDb(String query, RowMapper<T> rowMapper) {
         try {
             Field shardsField = HashBasedRequestManager.class.getDeclaredField("shards");
             shardsField.setAccessible(true);
@@ -222,6 +234,31 @@ public class HashBasedRequestManagerSmokeTest {
 
             return shardJdbcTemplate.query(query, rowMapper);
         } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void executeOnDb(String query) {
+        try {
+            Field shardsField = HashBasedRequestManager.class.getDeclaredField("shards");
+            shardsField.setAccessible(true);
+
+            List<Shard> shards = (List<Shard>) shardsField.get(requestManager);
+            if (shards.size() != 1) {
+                throw new IllegalStateException("Unexpected shards' configuration.");
+            }
+
+            Shard shard = shards.stream().findFirst().get();
+            SqliteShardDAO sqliteShardDao = (SqliteShardDAO) shard.getDao();
+
+            Field jdbcTemplateField = sqliteShardDao.getClass().getSuperclass().getDeclaredField("jdbcTemplate");
+            jdbcTemplateField.setAccessible(true);
+
+            JdbcTemplate shardJdbcTemplate = (JdbcTemplate) jdbcTemplateField.get(sqliteShardDao);
+
+            shardJdbcTemplate.execute(query);
+        }
+        catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
