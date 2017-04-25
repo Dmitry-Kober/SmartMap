@@ -82,7 +82,7 @@ public class FileSystemShard implements IFileSystemShard {
                     .find(shardPath, Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(fileNameMask))
                     .forEach(path -> {
                         try {
-                            Files.delete(path);
+                            Files.deleteIfExists(path);
                             filesAreRemoved[0] = true;
                         }
                         catch (IOException e) {
@@ -96,6 +96,17 @@ public class FileSystemShard implements IFileSystemShard {
         }
 
         return filesAreRemoved[0];
+    }
+
+    @Override
+    public boolean removeFile(Path path) {
+        try {
+            return Files.deleteIfExists(path);
+        }
+        catch (IOException e) {
+            LOG.error("Unable to remove the '{}' file from the '{}' shard .", new Object[]{path.toFile().getAbsolutePath(), shardLocation}, e);
+            return false;
+        }
     }
 
     @Override

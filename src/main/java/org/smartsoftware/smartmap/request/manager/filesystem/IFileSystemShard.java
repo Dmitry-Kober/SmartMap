@@ -12,6 +12,7 @@ public interface IFileSystemShard {
     void init();
 
     boolean createNewFileWithValue(Path path, IValue value);
+    boolean removeFile(Path path);
     boolean removeAllFilesWithMask(Path shardPath, String fileNameMask);
 
     IValue getValueFrom(Path path);

@@ -3,13 +3,14 @@ package org.smartsoftware.smartmap.request.manager.datasource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.smartsoftware.smartmap.domain.data.IKey;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.support.JdbcDaoSupport;
 
 import javax.sql.DataSource;
 import java.nio.file.Path;
 import java.sql.*;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * Created by Dmitry on 23.04.2017.
@@ -38,6 +39,23 @@ public class SqliteShardDAO extends JdbcDaoSupport implements IShardDAO {
             "path TEXT NOT NULL, " +
             "status TEXT CHECK(status IN ('UPDATING', 'COMMITTED', 'REMOVED')) " +
             ");";
+
+    private static final String GET_ALL_REMOVED_AND_COMMITTED_ENTRIES_BUT_LATEST =
+            "SELECT id, path from ENTRIES " +
+            "WHERE (status = 'COMMITTED' OR status = 'REMOVED') AND id NOT IN ( " +
+            "    SELECT id " +
+            "    FROM ( " +
+            "        SELECT " +
+            "            id, " +
+            "            entry_key, " +
+            "            MAX(asAt) asAt " +
+            "        FROM ENTRIES " +
+            "        WHERE status = 'COMMITTED' " +
+            "        GROUP BY entry_key " +
+            "    ) " +
+            ");";
+
+    private static final String REMOVE_ENTRIES = "DELETE FROM ENTRIES WHERE id IN (:ids);";
 
     private static final String ADD_UPDATING_ENTRY = "INSERT INTO ENTRIES (entry_key, asAt, path, status) VALUES (?, ?, ?, 'UPDATING');";
 
@@ -112,5 +130,40 @@ public class SqliteShardDAO extends JdbcDaoSupport implements IShardDAO {
     public boolean markEntriesAsRemoved(IKey key) {
         int updatedRecords = getJdbcTemplate().update(MARK_ENTRIES_AS_REMOVED, key.get());
         return updatedRecords > 0;
+    }
+
+    @Override
+    public boolean removeEntries(Set<Integer> ids) {
+        int updatedRecords = getJdbcTemplate().update(REMOVE_ENTRIES, Collections.singletonMap("ids", ids), Integer.class);
+        return updatedRecords > 0;
+    }
+
+    @Override
+    public Map<Integer, String> getAllRemovedAndCommittedEntriesButLatest() {
+
+        List<Entry> entries = getJdbcTemplate().query(GET_ALL_REMOVED_AND_COMMITTED_ENTRIES_BUT_LATEST, (resultSet, i) -> {
+            return new Entry(resultSet.getInt(1), resultSet.getString(2));
+        });
+        Map<Integer, String> entryMap = new HashMap<>();
+        entries.stream().forEach(entry -> entryMap.put(entry.getId(), entry.getPath()));
+        return entryMap;
+    }
+
+    private static class Entry {
+        private int id;
+        private String path;
+
+        public Entry(int id, String path) {
+            this.id = id;
+            this.path = path;
+        }
+
+        public int getId() {
+            return id;
+        }
+
+        public String getPath() {
+            return path;
+        }
     }
 }
