@@ -22,10 +22,10 @@
         </property>
     </bean>
 
-    <bean id="shard1" class="org.smartsoftware.request.manager.Shard">
+    <bean id="shard1" class="org.smartsoftware.smartmap.request.manager.Shard">
         <constructor-arg index="0" value="${shard1.datasource.path}"/>
         <constructor-arg index="1">
-            <bean class="org.smartsoftware.request.manager.datasource.SqliteShardDAO">
+            <bean class="org.smartsoftware.smartmap.request.manager.datasource.SqliteShardDAO">
                 <constructor-arg index="0" value="${shard1.datasource.path}"/>
                 <constructor-arg index="1">
                     <bean class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close" lazy-init="true">
@@ -40,14 +40,14 @@
             </bean>
         </constructor-arg>
         <constructor-arg index="2">
-            <bean class="org.smartsoftware.request.manager.filesystem.FileSystemShard">
+            <bean class="org.smartsoftware.smartmap.request.manager.filesystem.FileSystemShard">
                 <constructor-arg index="0" value="${shard1.datasource.path}"/>
             </bean>
         </constructor-arg>
     </bean>
 
 
-    <bean id="hashBasedRequestManager" class="org.smartsoftware.request.manager.HashBasedRequestManager">
+    <bean id="hashBasedRequestManager" class="org.smartsoftware.smartmap.request.manager.HashBasedRequestManager">
         <constructor-arg index="0">
             <util:list>
                 <ref bean="shard1"/>
