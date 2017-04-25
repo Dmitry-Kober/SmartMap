@@ -134,7 +134,7 @@ public class SqliteShardDAO extends JdbcDaoSupport implements IShardDAO {
 
     @Override
     public boolean removeEntries(Set<Integer> ids) {
-        int updatedRecords = getJdbcTemplate().update(REMOVE_ENTRIES, Collections.singletonMap("ids", ids), Integer.class);
+        int updatedRecords = getJdbcTemplate().update(REMOVE_ENTRIES, Collections.singletonMap("ids", ids));
         return updatedRecords > 0;
     }
 
