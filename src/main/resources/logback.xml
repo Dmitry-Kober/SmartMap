@@ -10,10 +10,6 @@
         </encoder>
     </appender>
 
-    <logger name="com.lordofthejars.foo" level="INFO" additivity="false">
-        <appender-ref ref="STDOUT" />
-    </logger>
-
     <logger name="org.springframework" level="OFF" />
 
     <root level="DEBUG">

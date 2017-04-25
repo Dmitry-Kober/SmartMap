@@ -1,18 +1,17 @@
 package org.smartsoftware.request.manager;
 
-import org.hamcrest.Matchers;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.smartsoftware.domain.communication.CommunicationChain;
 import org.smartsoftware.domain.communication.request.GetRequest;
 import org.smartsoftware.domain.communication.request.IRequest;
 import org.smartsoftware.domain.communication.request.PutRequest;
+import org.smartsoftware.domain.communication.request.RemoveRequest;
 import org.smartsoftware.domain.communication.response.SuccessResponse;
 import org.smartsoftware.domain.communication.response.ValueResponse;
 import org.smartsoftware.domain.data.ByteArrayValue;
 import org.smartsoftware.domain.data.StringKey;
-import org.smartsoftware.request.manager.datasource.IShardDAO;
-import org.smartsoftware.request.manager.datasource.*;
+import org.smartsoftware.request.manager.datasource.SqliteShardDAO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -20,16 +19,12 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import java.lang.reflect.Field;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 
 /**
  * Created by Dmitry on 23.04.2017.
@@ -43,7 +38,7 @@ public class HashBasedRequestManagerTest {
 
     @Test
     public void testFreshInitializationProcess() throws IllegalAccessException, NoSuchFieldException, SQLException {
-        List<Integer> result = getFromDb(
+        List<Integer> result = executeOnDb(
                 "SELECT COUNT(*) FROM ENTRIES where status != 'COMMITTED';",
                 (resultSet, i) -> resultSet.getInt(1)
         );
@@ -64,12 +59,12 @@ public class HashBasedRequestManagerTest {
 
         assertThat(communicationChain.getResponse(), allOf(notNullValue(), instanceOf(SuccessResponse.class)));
 
-        List<Integer> numberOfEntriesInDb = getFromDb("SELECT COUNT(*) FROM ENTITIES;", (resultSet, i) -> resultSet.getInt(1));
+        List<Integer> numberOfEntriesInDb = executeOnDb("SELECT COUNT(*) FROM ENTRIES;", (resultSet, i) -> resultSet.getInt(1));
         assertThat(numberOfEntriesInDb, hasItem(greaterThanOrEqualTo(1)));
     }
 
     @Test
-    public void testGetExistingValue() {
+    public void shouldGetExistingValue() {
         IRequest putRequest = new PutRequest(
                 new StringKey("test_key_get"),
                 new ByteArrayValue("test_value_get".getBytes())
@@ -88,21 +83,53 @@ public class HashBasedRequestManagerTest {
                 ),
                 equalTo("test_value_get")
         );
-
-
     }
 
-    private <T> List<T> getFromDb(String query, RowMapper<T> rowMapper) {
+    @Test
+    public void shouldRemoveExistingValue() {
+        IRequest putRequest = new PutRequest(
+                new StringKey("test_key_remove"),
+                new ByteArrayValue("test_value_remove".getBytes())
+        );
+        requestManager.onRequest(new CommunicationChain(putRequest));
+
+        IRequest putRequestOther = new PutRequest(
+                new StringKey("test_key_remove_other"),
+                new ByteArrayValue("test_value_remove_other".getBytes())
+        );
+        requestManager.onRequest(new CommunicationChain(putRequestOther));
+
+        IRequest removeRequest = new RemoveRequest(new StringKey("test_key_remove"));
+        CommunicationChain communicationChain = requestManager.onRequest(new CommunicationChain(removeRequest));
+        assertThat(
+                communicationChain.getResponse(),
+                allOf(notNullValue(), instanceOf(SuccessResponse.class))
+        );
+
+        List<Integer> numberOfEntriesInDbKeyRemove = executeOnDb(
+                "SELECT COUNT(*) FROM ENTRIES WHERE entry_key = 'test_key_remove';",
+                (resultSet, i) -> resultSet.getInt(1)
+        );
+        assertThat(numberOfEntriesInDbKeyRemove, hasItem(greaterThanOrEqualTo(0)));
+
+        List<Integer> numberOfEntriesInDbKeyRemoveOther = executeOnDb(
+                "SELECT COUNT(*) FROM ENTRIES WHERE entry_key = 'test_key_remove';",
+                (resultSet, i) -> resultSet.getInt(1)
+        );
+        assertThat(numberOfEntriesInDbKeyRemoveOther, hasItem(greaterThanOrEqualTo(1)));
+    }
+
+    private <T> List<T> executeOnDb(String query, RowMapper<T> rowMapper) {
         try {
             Field shardsField = HashBasedRequestManager.class.getDeclaredField("shards");
             shardsField.setAccessible(true);
 
-            Map<String, Shard> shards = (Map<String, Shard>) shardsField.get(requestManager);
+            List<Shard> shards = (List<Shard>) shardsField.get(requestManager);
             if (shards.size() != 1) {
                 throw new IllegalStateException("Unexpected shards' configuration.");
             }
 
-            Shard shard = shards.entrySet().stream().findFirst().get().getValue();
+            Shard shard = shards.stream().findFirst().get();
             SqliteShardDAO sqliteShardDao = (SqliteShardDAO) shard.getDao();
 
             Field jdbcTemplateField = sqliteShardDao.getClass().getSuperclass().getDeclaredField("jdbcTemplate");
@@ -111,8 +138,7 @@ public class HashBasedRequestManagerTest {
             JdbcTemplate shardJdbcTemplate = (JdbcTemplate) jdbcTemplateField.get(sqliteShardDao);
 
             return shardJdbcTemplate.query(query, rowMapper);
-        }
-        catch (NoSuchFieldException | IllegalAccessException e) {
+        } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }

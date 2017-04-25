@@ -102,23 +102,28 @@ public class LockBasedFileSystemShard implements IFileSystemShard {
 
     @Override
     public boolean removeAllFilesWithMask(Path shardPath, String fileNameMask) {
+        boolean[] filesAreRemoved = new boolean[1];
+        filesAreRemoved[0] = false;
+
         try {
             Files
                     .find(shardPath, Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(fileNameMask))
                     .forEach(path -> {
                         try {
                             Files.delete(path);
-                        } catch (IOException e) {
-                            throw new RuntimeException("Unable to remove files from the '" + shardLocation + "' shard with the '" + fileNameMask + "' mask.", e);
+                            filesAreRemoved[0] = true;
+                        }
+                        catch (IOException e) {
+                            LOG.error("Unable to remove files from the '{}' shard with the '{}' mask.", new Object[] {shardLocation, fileNameMask}, e);
                         }
                     });
         }
         catch (IOException e) {
-            LOG.error("Unable to remove files from the '" + shardLocation + "' shard with the '" + fileNameMask + "' mask.", e);
+            LOG.error("Unable to remove files from the '{}' shard with the '{}' mask.", new Object[] {shardLocation, fileNameMask}, e);
             return false;
         }
 
-        return true;
+        return filesAreRemoved[0];
     }
 
     @Override

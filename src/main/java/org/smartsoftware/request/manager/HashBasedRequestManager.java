@@ -4,17 +4,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.smartsoftware.domain.communication.CommunicationChain;
 import org.smartsoftware.domain.communication.request.GetRequest;
-import org.smartsoftware.domain.communication.request.RemoveRequest;
-import org.smartsoftware.domain.data.IKey;
 import org.smartsoftware.domain.communication.request.IRequest;
 import org.smartsoftware.domain.communication.request.PutRequest;
+import org.smartsoftware.domain.communication.request.RemoveRequest;
+import org.smartsoftware.domain.data.IKey;
 import org.smartsoftware.domain.data.IValue;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.nio.file.Paths;
-import java.sql.*;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -60,7 +59,7 @@ public class HashBasedRequestManager implements IRequestManager {
 
             // business process
             Timestamp timestamp = new Timestamp(Instant.now().toEpochMilli());
-            String filePath = shard.getPath() + requestKey.get() + UUID.randomUUID() + ".data";
+            String filePath = shard.getPath() + "/" + requestKey.get() + "$" + UUID.randomUUID() + ".data";
 
             boolean isUpdatingRecordAdded = shard.getDao().addUpdatingEntry(timestamp, requestKey, filePath);
             if ( !isUpdatingRecordAdded ) {
@@ -109,7 +108,10 @@ public class HashBasedRequestManager implements IRequestManager {
                 return communicationChain.withFailedResponse();
             }
 
-            boolean filesAreRemoved = shard.getFileSystem().removeAllFilesWithMask(Paths.get(shard.getPath()), String.valueOf(requestKey.get()));
+            boolean filesAreRemoved = shard.getFileSystem().removeAllFilesWithMask(
+                    Paths.get(shard.getPath()),
+                    String.valueOf(requestKey.get()) + "\\$.*\\.data"
+            );
             if ( !filesAreRemoved ) {
                 LOG.error("Unable to remove files for the '{}' key.", requestKey.get());
                 return communicationChain.withFailedResponse();
@@ -118,7 +120,7 @@ public class HashBasedRequestManager implements IRequestManager {
             return communicationChain.withSuccessResponse();
         }
         else {
-            LOG.error("Unknown reques is received.");
+            LOG.error("Unknown request is received.");
             return communicationChain.withFailedResponse();
         }
     }
