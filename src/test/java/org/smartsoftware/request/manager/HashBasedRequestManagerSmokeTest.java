@@ -7,6 +7,7 @@ import org.smartsoftware.domain.communication.request.GetRequest;
 import org.smartsoftware.domain.communication.request.IRequest;
 import org.smartsoftware.domain.communication.request.PutRequest;
 import org.smartsoftware.domain.communication.request.RemoveRequest;
+import org.smartsoftware.domain.communication.response.EmptyResponse;
 import org.smartsoftware.domain.communication.response.SuccessResponse;
 import org.smartsoftware.domain.communication.response.ValueResponse;
 import org.smartsoftware.domain.data.ByteArrayValue;
@@ -31,7 +32,7 @@ import static org.junit.Assert.assertThat;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(locations = {"classpath:test-context.xml"})
-public class HashBasedRequestManagerTest {
+public class HashBasedRequestManagerSmokeTest {
 
     @Autowired
     private HashBasedRequestManager requestManager;
@@ -117,6 +118,88 @@ public class HashBasedRequestManagerTest {
                 (resultSet, i) -> resultSet.getInt(1)
         );
         assertThat(numberOfEntriesInDbKeyRemoveOther, hasItem(greaterThanOrEqualTo(1)));
+    }
+
+    @Test
+    public void shouldCorrectlyResolveConcurrentModificationEventualConsistency() {
+        Thread thread1 = new Thread(() -> {
+            try {
+                requestManager.onRequest(new CommunicationChain(new PutRequest(new StringKey("thread_key1"), new ByteArrayValue("thread_1_value1".getBytes()))));
+                requestManager.onRequest(new CommunicationChain(new PutRequest(new StringKey("thread_key2"), new ByteArrayValue("thread_1_value2".getBytes()))));
+                requestManager.onRequest(new CommunicationChain(new PutRequest(new StringKey("thread_key3"), new ByteArrayValue("thread_1_value3".getBytes()))));
+                Thread.sleep(1000);
+                requestManager.onRequest(new CommunicationChain(new PutRequest(new StringKey("thread_key2"), new ByteArrayValue("thread_1_value2_changed_1".getBytes()))));
+                requestManager.onRequest(new CommunicationChain(new GetRequest(new StringKey("thread_key2"))));
+                requestManager.onRequest(new CommunicationChain(new PutRequest(new StringKey("thread_key3"), new ByteArrayValue("thread_1_value3_changed_1".getBytes()))));
+                requestManager.onRequest(new CommunicationChain(new RemoveRequest(new StringKey("thread_key2"))));
+                Thread.sleep(1000);
+                requestManager.onRequest(new CommunicationChain(new GetRequest(new StringKey("thread_key1"))));
+                requestManager.onRequest(new CommunicationChain(new GetRequest(new StringKey("thread_key2"))));
+                requestManager.onRequest(new CommunicationChain(new GetRequest(new StringKey("thread_key3"))));
+            }
+            catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        Thread thread2 = new Thread(() -> {
+            try {
+                requestManager.onRequest(new CommunicationChain(new PutRequest(new StringKey("thread_key1"), new ByteArrayValue("thread_2_value1".getBytes()))));
+                requestManager.onRequest(new CommunicationChain(new PutRequest(new StringKey("thread_key2"), new ByteArrayValue("thread_2_value2".getBytes()))));
+                requestManager.onRequest(new CommunicationChain(new PutRequest(new StringKey("thread_key3"), new ByteArrayValue("thread_2_value3".getBytes()))));
+                Thread.sleep(1000);
+                requestManager.onRequest(new CommunicationChain(new PutRequest(new StringKey("thread_key2"), new ByteArrayValue("thread_2_value2_changed_1".getBytes()))));
+                requestManager.onRequest(new CommunicationChain(new GetRequest(new StringKey("thread_key2"))));
+                requestManager.onRequest(new CommunicationChain(new PutRequest(new StringKey("thread_key3"), new ByteArrayValue("thread_2_value3_changed_1".getBytes()))));
+                requestManager.onRequest(new CommunicationChain(new RemoveRequest(new StringKey("thread_key2"))));
+                Thread.sleep(1000);
+                requestManager.onRequest(new CommunicationChain(new GetRequest(new StringKey("thread_key1"))));
+                requestManager.onRequest(new CommunicationChain(new GetRequest(new StringKey("thread_key2"))));
+                requestManager.onRequest(new CommunicationChain(new GetRequest(new StringKey("thread_key3"))));
+            }
+            catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        thread1.start();
+        thread2.start();
+
+        try {
+            thread1.join();
+            thread2.join();
+        }
+        catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        CommunicationChain key1CommPath = requestManager.onRequest(new CommunicationChain(new GetRequest(new StringKey("thread_key1"))));
+        assertThat(
+                key1CommPath.getResponse(),
+                allOf(notNullValue(), instanceOf(ValueResponse.class))
+        );
+        assertThat(
+                new String(
+                        ((ValueResponse) key1CommPath.getResponse()).getValue().get().orElse("Nan".getBytes())
+                ),
+                anyOf(equalTo("thread_1_value1"), equalTo("thread_2_value1"))
+        );
+
+        CommunicationChain key2CommPath = requestManager.onRequest(new CommunicationChain(new GetRequest(new StringKey("thread_key2"))));
+        assertThat(
+                key2CommPath.getResponse(),
+                allOf(notNullValue(), instanceOf(EmptyResponse.class))
+        );
+
+        CommunicationChain key3CommPath = requestManager.onRequest(new CommunicationChain(new GetRequest(new StringKey("thread_key3"))));
+        assertThat(
+                key3CommPath.getResponse(),
+                allOf(notNullValue(), instanceOf(ValueResponse.class))
+        );
+        assertThat(
+                new String( ((ValueResponse) key3CommPath.getResponse()).getValue().get().orElse("Nan".getBytes()) ),
+                anyOf(equalTo("thread_1_value3_changed_1"), equalTo("thread_2_value3_changed_1"))
+        );
     }
 
     private <T> List<T> executeOnDb(String query, RowMapper<T> rowMapper) {

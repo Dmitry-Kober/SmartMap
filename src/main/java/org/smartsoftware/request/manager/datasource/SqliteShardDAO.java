@@ -3,14 +3,13 @@ package org.smartsoftware.request.manager.datasource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.smartsoftware.domain.data.IKey;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.support.JdbcDaoSupport;
 
 import javax.sql.DataSource;
 import java.nio.file.Path;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.sql.Timestamp;
+import java.sql.*;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -78,8 +77,15 @@ public class SqliteShardDAO extends JdbcDaoSupport implements IShardDAO {
 
     @Override
     public Optional<String> getCommittedPathFor(IKey key) {
-        String path = getJdbcTemplate().queryForObject(GET_LATEST_COMMITTED_FILE_PATH, new Object[]{key.get()}, String.class);
-        return Optional.ofNullable(path);
+        List<String> paths = getJdbcTemplate().query(GET_LATEST_COMMITTED_FILE_PATH, new Object[]{key.get()}, (resultSet, i) -> resultSet.getString(1));
+        if (paths.size() == 0) {
+            return Optional.empty();
+        }
+        if (paths.size() == 1) {
+            return Optional.of(paths.get(0));
+        }
+        LOG.error("Unexpected number of paths found for the '{}' key.", key.get());
+        return Optional.empty();
     }
 
     public boolean addUpdatingEntry(Timestamp timestamp, IKey key, String filePath) {

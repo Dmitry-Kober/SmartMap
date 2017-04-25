@@ -9,7 +9,7 @@ import org.smartsoftware.domain.data.IValue;
  */
 public class CommunicationChain {
 
-    private static final IResponse EMPTY_RESPONSE = new EmptyReponse();
+    private static final IResponse EMPTY_RESPONSE = new EmptyResponse();
     private static final IResponse SUCCESS_RESPONSE = new SuccessResponse();
     private static final IResponse FAILED_RESPONSE = new FailedResponse();
 
