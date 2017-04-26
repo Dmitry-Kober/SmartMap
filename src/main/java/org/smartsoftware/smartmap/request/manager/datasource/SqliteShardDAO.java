@@ -3,8 +3,7 @@ package org.smartsoftware.smartmap.request.manager.datasource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.smartsoftware.smartmap.domain.data.IKey;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.support.JdbcDaoSupport;
 
 import javax.sql.DataSource;
@@ -55,7 +54,7 @@ public class SqliteShardDAO extends JdbcDaoSupport implements IShardDAO {
             "    ) " +
             ");";
 
-    private static final String REMOVE_ENTRIES = "DELETE FROM ENTRIES WHERE id IN (:ids);";
+    private static final String REMOVE_ENTRIES_BY_ID = "DELETE FROM ENTRIES WHERE id IN (:ids);";
 
     private static final String ADD_UPDATING_ENTRY = "INSERT INTO ENTRIES (entry_key, asAt, path, status) VALUES (?, ?, ?, 'UPDATING');";
 
@@ -134,13 +133,13 @@ public class SqliteShardDAO extends JdbcDaoSupport implements IShardDAO {
 
     @Override
     public boolean removeEntries(Set<Integer> ids) {
-        int updatedRecords = getJdbcTemplate().update(REMOVE_ENTRIES, Collections.singletonMap("ids", ids));
+        NamedParameterJdbcTemplate namedParamJdbcTemplate = new NamedParameterJdbcTemplate(getDataSource());
+        int updatedRecords = namedParamJdbcTemplate.update(REMOVE_ENTRIES_BY_ID, Collections.singletonMap("ids", ids));
         return updatedRecords > 0;
     }
 
     @Override
     public Map<Integer, String> getAllRemovedAndCommittedEntriesButLatest() {
-
         List<Entry> entries = getJdbcTemplate().query(GET_ALL_REMOVED_AND_COMMITTED_ENTRIES_BUT_LATEST, (resultSet, i) -> {
             return new Entry(resultSet.getInt(1), resultSet.getString(2));
         });
