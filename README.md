@@ -1,4 +1,7 @@
 # SmartMap
+
+// For now, the component is in a very DRAFT MVP stage!!!
+
 SmartMap is a key-value file-based reliable storage, where reliabily means fault tolerance.
 
 The insight of the implementation is that there are two layers: register and file system.
