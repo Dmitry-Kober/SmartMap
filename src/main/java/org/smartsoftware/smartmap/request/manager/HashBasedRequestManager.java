@@ -116,15 +116,9 @@ public class HashBasedRequestManager implements IRequestManager {
         try {
             locks.readLock(fileLocation.intern());
 
-            Path filePath = Paths.get(fileLocation);
-            if (Files.exists(filePath)) {
-                IValue value = shard.getFileSystem().getValueFrom(filePath);
-                if (value.get().isPresent()) {
-                    return communicationChain.withValueResponse(value);
-                }
-                else {
-                    return communicationChain.withEmptyResponse();
-                }
+            IValue value = shard.getFileSystem().getValueFrom(Paths.get(fileLocation));
+            if (value.get().isPresent()) {
+                return communicationChain.withValueResponse(value);
             }
             else {
                 return communicationChain.withEmptyResponse();

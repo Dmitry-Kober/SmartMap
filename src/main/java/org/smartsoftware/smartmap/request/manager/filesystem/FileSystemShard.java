@@ -3,6 +3,7 @@ package org.smartsoftware.smartmap.request.manager.filesystem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.smartsoftware.smartmap.domain.data.ByteArrayValue;
+import org.smartsoftware.smartmap.domain.data.EmptyValue;
 import org.smartsoftware.smartmap.domain.data.IValue;
 
 import java.io.IOException;
@@ -92,6 +93,10 @@ public class FileSystemShard implements IFileSystemShard {
 
     @Override
     public IValue getValueFrom(Path path) {
+        if ( !Files.exists(path) ) {
+            return new EmptyValue();
+        }
+
         byte[] data;
         try {
             data = Files.readAllBytes(path);
