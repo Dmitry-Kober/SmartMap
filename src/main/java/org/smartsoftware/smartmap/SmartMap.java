@@ -13,8 +13,6 @@ import org.smartsoftware.smartmap.domain.data.StringKey;
 import org.smartsoftware.smartmap.request.manager.HashBasedRequestManager;
 import org.smartsoftware.smartmap.request.manager.IRequestManager;
 import org.smartsoftware.smartmap.request.manager.Shard;
-import org.smartsoftware.smartmap.request.manager.filesystem.FileSystemShard;
-import org.smartsoftware.smartmap.request.manager.filesystem.IFileSystemShard;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -27,11 +25,8 @@ public class SmartMap implements ISmartMap {
     private final IRequestManager requestManager;
 
     public SmartMap() {
-        IFileSystemShard fileSystemShard = new FileSystemShard("smartmap");
         requestManager = new HashBasedRequestManager(
-                Collections.singletonList(
-                        new Shard("shard1", fileSystemShard)
-                )
+                Collections.singletonList(new Shard("shard1"))
         );
     }
 

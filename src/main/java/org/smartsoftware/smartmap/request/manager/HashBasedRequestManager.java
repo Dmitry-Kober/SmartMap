@@ -8,11 +8,10 @@ import org.smartsoftware.smartmap.domain.data.IKey;
 import org.smartsoftware.smartmap.domain.data.IValue;
 import org.smartsoftware.smartmap.utils.KeyedReentrantLock;
 
-import javax.annotation.PostConstruct;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -27,14 +26,6 @@ public class HashBasedRequestManager implements IRequestManager {
 
     public HashBasedRequestManager(List<Shard> shards) {
         this.shards = shards;
-    }
-
-    @PostConstruct
-    public void init() {
-        LOG.trace("Initializing a Request Manager...");
-        shards.stream().forEach(shard -> {
-            shard.getFileSystem().init();
-        });
     }
 
     @Override

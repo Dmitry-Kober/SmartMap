@@ -1,5 +1,6 @@
 package org.smartsoftware.smartmap.request.manager;
 
+import org.smartsoftware.smartmap.request.manager.filesystem.FileSystemShard;
 import org.smartsoftware.smartmap.request.manager.filesystem.IFileSystemShard;
 
 /**
@@ -10,9 +11,9 @@ public class Shard {
     private final String path;
     private final IFileSystemShard fileSystem;
 
-    public Shard(String path, IFileSystemShard fileSystem) {
+    public Shard(String path) {
         this.path = path;
-        this.fileSystem = fileSystem;
+        this.fileSystem = new FileSystemShard(path);
     }
 
     public String getPath() {

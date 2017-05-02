@@ -7,8 +7,6 @@ import org.smartsoftware.smartmap.domain.communication.CommunicationChain;
  */
 public interface IRequestManager {
 
-    void init();
-
     CommunicationChain onRequest(CommunicationChain communicationChain);
 
 }

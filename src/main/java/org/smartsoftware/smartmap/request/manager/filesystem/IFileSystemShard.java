@@ -10,8 +10,6 @@ import java.util.Set;
  */
 public interface IFileSystemShard {
 
-    void init();
-
     boolean createOrReplaceFileWithValue(Path path, IValue value);
     boolean removeFile(Path path);
     Set<String> listAllFilesInShardMatching(Path path, String mask);

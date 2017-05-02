@@ -11,8 +11,6 @@ import org.smartsoftware.smartmap.domain.communication.response.SuccessResponse;
 import org.smartsoftware.smartmap.domain.communication.response.ValueResponse;
 import org.smartsoftware.smartmap.domain.data.ByteArrayValue;
 import org.smartsoftware.smartmap.domain.data.StringKey;
-import org.smartsoftware.smartmap.request.manager.filesystem.FileSystemShard;
-import org.smartsoftware.smartmap.request.manager.filesystem.IFileSystemShard;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -38,12 +36,7 @@ public class HashBasedRequestManagerSmokeTest {
 
     @Before
     public void setUp() throws IOException {
-        IFileSystemShard fileSystemShard = new FileSystemShard("smartmap");
-        requestManager = new HashBasedRequestManager(
-                Collections.singletonList(
-                        new Shard("shard1", fileSystemShard)
-                )
-        );
+        requestManager = new HashBasedRequestManager(Collections.singletonList(new Shard("shard1")));
 
         Path shardPath = Paths.get(getShard().getPath());
         Files.list(shardPath).forEach(file -> file.toFile().delete());

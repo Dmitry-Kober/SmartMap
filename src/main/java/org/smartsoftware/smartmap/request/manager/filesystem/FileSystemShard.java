@@ -22,14 +22,11 @@ public class FileSystemShard implements IFileSystemShard {
 
     private static final Logger LOG = LoggerFactory.getLogger(FileSystemShard.class);
 
-    private String shardLocation;
+    private final String shardLocation;
 
     public FileSystemShard(String shardLocation) {
         this.shardLocation = shardLocation;
-    }
 
-    @Override
-    public void init() {
         LOG.trace("Initializing a File System for the: {} shard", shardLocation);
 
         try {
