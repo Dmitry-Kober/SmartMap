@@ -1,6 +1,5 @@
 package org.smartsoftware.smartmap.request.manager;
 
-import org.smartsoftware.smartmap.request.manager.datasource.IShardDAO;
 import org.smartsoftware.smartmap.request.manager.filesystem.IFileSystemShard;
 
 /**
@@ -9,21 +8,15 @@ import org.smartsoftware.smartmap.request.manager.filesystem.IFileSystemShard;
 public class Shard {
 
     private final String path;
-    private final IShardDAO dao;
     private final IFileSystemShard fileSystem;
 
-    public Shard(String path, IShardDAO dao, IFileSystemShard fileSystem) {
+    public Shard(String path, IFileSystemShard fileSystem) {
         this.path = path;
-        this.dao = dao;
         this.fileSystem = fileSystem;
     }
 
     public String getPath() {
         return path;
-    }
-
-    public IShardDAO getDao() {
-        return dao;
     }
 
     public IFileSystemShard getFileSystem() {

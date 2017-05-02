@@ -10,6 +10,9 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Created by dkober on 24.4.2017 г..
@@ -33,17 +36,6 @@ public class FileSystemShard implements IFileSystemShard {
             if (!Files.exists(shardPath)) {
                 Files.createDirectories(shardPath);
             }
-            else {
-                Files
-                        .find(shardPath, Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(".*lock"))
-                        .forEach(path -> {
-                            try {
-                                Files.delete(path);
-                            } catch (IOException e) {
-                                throw new RuntimeException("Cannot remove file lock from the " + shardLocation + " shard.");
-                            }
-                        });
-            }
         }
         catch (IOException e) {
             throw new RuntimeException(e);
@@ -51,9 +43,10 @@ public class FileSystemShard implements IFileSystemShard {
     }
 
     @Override
-    public boolean createNewFileWithValue(Path path, IValue value) {
+    public boolean createOrReplaceFileWithValue(Path path, IValue value) {
         String absolutePath = path.toFile().getAbsolutePath();
         try {
+            Files.deleteIfExists(path);
             Files.createFile(path);
             value.get().ifPresent(data -> {
                 try (OutputStream outputStream = Files.newOutputStream(path)) {
@@ -73,29 +66,17 @@ public class FileSystemShard implements IFileSystemShard {
     }
 
     @Override
-    public boolean removeAllFilesWithMask(Path shardPath, String fileNameMask) {
-        boolean[] filesAreRemoved = new boolean[1];
-        filesAreRemoved[0] = false;
-
+    public Set<String> listAllFilesInShardMatching(Path shardPath, String fileNameMask) {
         try {
-            Files
+            return Files
                     .find(shardPath, Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(fileNameMask))
-                    .forEach(path -> {
-                        try {
-                            Files.deleteIfExists(path);
-                            filesAreRemoved[0] = true;
-                        }
-                        catch (IOException e) {
-                            LOG.error("Unable to remove files from the '{}' shard with the '{}' mask.", new Object[] {shardLocation, fileNameMask}, e);
-                        }
-                    });
+                    .map(path -> path.toFile().getName())
+                    .collect(Collectors.toSet());
         }
         catch (IOException e) {
             LOG.error("Unable to remove files from the '{}' shard with the '{}' mask.", new Object[] {shardLocation, fileNameMask}, e);
-            return false;
+            return Collections.emptySet();
         }
-
-        return filesAreRemoved[0];
     }
 
     @Override

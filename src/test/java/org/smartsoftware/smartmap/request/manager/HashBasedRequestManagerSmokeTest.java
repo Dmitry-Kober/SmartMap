@@ -1,5 +1,7 @@
 package org.smartsoftware.smartmap.request.manager;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.smartsoftware.smartmap.domain.communication.CommunicationChain;
@@ -10,20 +12,23 @@ import org.smartsoftware.smartmap.domain.communication.response.SuccessResponse;
 import org.smartsoftware.smartmap.domain.communication.response.ValueResponse;
 import org.smartsoftware.smartmap.domain.data.ByteArrayValue;
 import org.smartsoftware.smartmap.domain.data.StringKey;
-import org.smartsoftware.smartmap.request.manager.datasource.SqliteShardDAO;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
-import java.sql.SQLException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
+import java.util.Optional;
 
+import static junit.framework.TestCase.assertFalse;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Created by Dmitry on 23.04.2017.
@@ -35,15 +40,11 @@ public class HashBasedRequestManagerSmokeTest {
     @Autowired
     private HashBasedRequestManager requestManager;
 
-    @Test
-    public void testFreshInitializationProcess() throws IllegalAccessException, NoSuchFieldException, SQLException {
-        List<Integer> result = queryFromDb(
-                "SELECT COUNT(*) FROM ENTRIES where status != 'COMMITTED';",
-                (resultSet, i) -> resultSet.getInt(1)
-        );
-        assertThat(result, contains(0));
+    @Before
+    public void setUp() throws IOException {
+        Path shardPath = Paths.get(getShard().getPath());
+        Files.list(shardPath).forEach(file -> file.toFile().delete());
     }
-
 
     @Test
     public void shouldAddOneKeyValuePair() {
@@ -58,8 +59,12 @@ public class HashBasedRequestManagerSmokeTest {
 
         assertThat(communicationChain.getResponse(), allOf(notNullValue(), instanceOf(SuccessResponse.class)));
 
-        List<Integer> numberOfEntriesInDb = queryFromDb("SELECT COUNT(*) FROM ENTRIES;", (resultSet, i) -> resultSet.getInt(1));
-        assertThat(numberOfEntriesInDb, hasItem(greaterThanOrEqualTo(1)));
+        Shard shard = getShard();
+        Path filePath = Paths.get(shard.getPath() + "/test_key_addition.data");
+        assertTrue(Files.exists(filePath));
+
+        Optional<byte[]> value = shard.getFileSystem().getValueFrom(filePath).get();
+        assertTrue(value.isPresent() && new String(value.get()).equals("test_key_addition"));
     }
 
     @Test
@@ -105,24 +110,18 @@ public class HashBasedRequestManagerSmokeTest {
                 allOf(notNullValue(), instanceOf(SuccessResponse.class))
         );
 
-        List<Integer> numberOfEntriesInDbKeyRemove = queryFromDb(
-                "SELECT COUNT(*) FROM ENTRIES WHERE entry_key = 'test_key_remove';",
-                (resultSet, i) -> resultSet.getInt(1)
-        );
-        assertThat(numberOfEntriesInDbKeyRemove, hasItem(greaterThanOrEqualTo(0)));
+        Shard shard = getShard();
+        Path removeKeyFilePath = Paths.get(shard.getPath() + "/test_key_remove.data");
+        assertFalse(Files.exists(removeKeyFilePath));
 
-        List<Integer> numberOfEntriesInDbKeyRemoveOther = queryFromDb(
-                "SELECT COUNT(*) FROM ENTRIES WHERE entry_key = 'test_key_remove';",
-                (resultSet, i) -> resultSet.getInt(1)
-        );
-        assertThat(numberOfEntriesInDbKeyRemoveOther, hasItem(greaterThanOrEqualTo(1)));
+        Path otherFilePath = Paths.get(shard.getPath() + "/test_key_remove_other.data");
+        assertTrue(Files.exists(otherFilePath));
     }
 
     @Test
     public void shouldListAllLatestCommittedKeys() {
         requestManager.onRequest(new CommunicationChain(new PutRequest(new StringKey("list_key_1"), new ByteArrayValue("list_value_1".getBytes()))));
         requestManager.onRequest(new CommunicationChain(new PutRequest(new StringKey("list_key_2"), new ByteArrayValue("list_value_2".getBytes()))));
-        executeOnDb("UPDATE ENTRIES SET status = 'UPDATING' WHERE entry_key = 'list_key_1';");
 
         IRequest listRequest = new ListKeysRequest();
         CommunicationChain communicationChain = requestManager.onRequest(new CommunicationChain(listRequest));
@@ -130,7 +129,7 @@ public class HashBasedRequestManagerSmokeTest {
                 communicationChain.getResponse(),
                 allOf(notNullValue(), instanceOf(ListResponse.class) )
         );
-        assertThat(((ListResponse)communicationChain.getResponse()).get(), allOf(hasItem("list_key_2"), not(hasItem("list_key_1"))));
+        assertThat(((ListResponse)communicationChain.getResponse()).get(), allOf(hasItem("list_key_2"), hasItem("list_key_1")));
     }
 
     @Test
@@ -215,7 +214,7 @@ public class HashBasedRequestManagerSmokeTest {
         );
     }
 
-    private <T> List<T> queryFromDb(String query, RowMapper<T> rowMapper) {
+    private Shard getShard() {
         try {
             Field shardsField = HashBasedRequestManager.class.getDeclaredField("shards");
             shardsField.setAccessible(true);
@@ -225,42 +224,17 @@ public class HashBasedRequestManagerSmokeTest {
                 throw new IllegalStateException("Unexpected shards' configuration.");
             }
 
-            Shard shard = shards.stream().findFirst().get();
-            SqliteShardDAO sqliteShardDao = (SqliteShardDAO) shard.getDao();
-
-            Field jdbcTemplateField = sqliteShardDao.getClass().getSuperclass().getDeclaredField("jdbcTemplate");
-            jdbcTemplateField.setAccessible(true);
-
-            JdbcTemplate shardJdbcTemplate = (JdbcTemplate) jdbcTemplateField.get(sqliteShardDao);
-
-            return shardJdbcTemplate.query(query, rowMapper);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void executeOnDb(String query) {
-        try {
-            Field shardsField = HashBasedRequestManager.class.getDeclaredField("shards");
-            shardsField.setAccessible(true);
-
-            List<Shard> shards = (List<Shard>) shardsField.get(requestManager);
-            if (shards.size() != 1) {
-                throw new IllegalStateException("Unexpected shards' configuration.");
-            }
-
-            Shard shard = shards.stream().findFirst().get();
-            SqliteShardDAO sqliteShardDao = (SqliteShardDAO) shard.getDao();
-
-            Field jdbcTemplateField = sqliteShardDao.getClass().getSuperclass().getDeclaredField("jdbcTemplate");
-            jdbcTemplateField.setAccessible(true);
-
-            JdbcTemplate shardJdbcTemplate = (JdbcTemplate) jdbcTemplateField.get(sqliteShardDao);
-
-            shardJdbcTemplate.execute(query);
+            return shards.stream().findFirst().get();
         }
         catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
+
+    @After
+    public void tearDown() throws IOException {
+        Path shardPath = Paths.get(getShard().getPath());
+        Files.list(shardPath).forEach(file -> file.toFile().delete());
+    }
+
 }

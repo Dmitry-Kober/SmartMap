@@ -6,13 +6,15 @@ import org.smartsoftware.smartmap.domain.communication.CommunicationChain;
 import org.smartsoftware.smartmap.domain.communication.request.*;
 import org.smartsoftware.smartmap.domain.data.IKey;
 import org.smartsoftware.smartmap.domain.data.IValue;
+import org.smartsoftware.smartmap.utils.KeyedReentrantLock;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.sql.Timestamp;
-import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Created by Dmitry on 23.04.2017.
@@ -23,40 +25,17 @@ public class HashBasedRequestManager implements IRequestManager {
     private static final Logger LOG = LoggerFactory.getLogger(HashBasedRequestManager.class);
 
     private final List<Shard> shards;
+    private final KeyedReentrantLock<String> locks = new KeyedReentrantLock<>();
 
-    HashBasedRequestManager(List<Shard> shards) {
+    public HashBasedRequestManager(List<Shard> shards) {
         this.shards = shards;
     }
 
     @PostConstruct
     public void init() {
         LOG.trace("Initializing a Request Manager...");
-
-        scheduleHouseKeeper();
-
         shards.stream().forEach(shard -> {
             shard.getFileSystem().init();
-            shard.getDao().init();
-        });
-    }
-
-    private void scheduleHouseKeeper() {
-        Timer timer = new Timer();
-        timer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                performGC();
-            }
-        }, 1000, 2000);
-    }
-
-    private void performGC() {
-        LOG.trace("A GC is started...");
-        shards.stream().forEach(shard -> {
-            Map<Integer, String> houseKeepingCandidates = shard.getDao().getAllRemovedAndCommittedEntriesButLatest();
-            houseKeepingCandidates.values().stream().forEach(path -> shard.getFileSystem().removeFile(Paths.get(path)));
-            shard.getDao().removeEntries(houseKeepingCandidates.keySet());
-
         });
     }
 
@@ -106,74 +85,76 @@ public class HashBasedRequestManager implements IRequestManager {
     private CommunicationChain processListKeysRequest(CommunicationChain communicationChain) {
         List<String> allLatestCommittedKeys = new LinkedList<>();
         for (Shard shardItem : shards) {
-            allLatestCommittedKeys.addAll(shardItem.getDao().getAllLatestCommittedKeys());
+            Set<String> dataFilesInShard = shardItem.getFileSystem().listAllFilesInShardMatching(Paths.get(shardItem.getPath()), ".*data");
+            allLatestCommittedKeys.addAll(
+                    dataFilesInShard.stream().map(fileName -> fileName.substring(0, fileName.length()-5)).collect(Collectors.toSet())
+            );
         }
         return communicationChain.withListResponse(allLatestCommittedKeys);
     }
 
     private CommunicationChain processRemoveRequest(CommunicationChain communicationChain, IKey requestKey, Shard shard) {
-        Optional<String> filePath = shard.getDao().getCommittedPathFor(requestKey);
-        if ( !filePath.isPresent() ) {
+        String fileLocation = shard.getPath() + "/" + requestKey.get() + ".data";
+
+        try {
+            locks.writeLock(fileLocation.intern());
+
+            boolean filesIsRemoved = shard.getFileSystem().removeFile(Paths.get(fileLocation));
+            if ( !filesIsRemoved ) {
+                LOG.error("Unable to remove a file for the '{}' key.", requestKey.get());
+                return communicationChain.withFailedResponse();
+            }
+
             return communicationChain.withSuccessResponse();
         }
-        boolean entriesMarkedAsRemoved = shard.getDao().markEntriesAsRemoved(requestKey);
-        if ( !entriesMarkedAsRemoved ) {
-            LOG.error("Unable to mark entries as removed for the '{}' key.", requestKey.get());
-            return communicationChain.withFailedResponse();
+        finally {
+            locks.writeUnlock(fileLocation);
         }
-
-        boolean filesAreRemoved = shard.getFileSystem().removeAllFilesWithMask(
-                Paths.get(shard.getPath()),
-                String.valueOf(requestKey.get()) + "\\$.*\\.data"
-        );
-        if ( !filesAreRemoved ) {
-            LOG.error("Unable to remove files for the '{}' key.", requestKey.get());
-            return communicationChain.withFailedResponse();
-        }
-
-        return communicationChain.withSuccessResponse();
     }
 
     private CommunicationChain processGetRequest(CommunicationChain communicationChain, IKey requestKey, Shard shard) {
-        Optional<String> filePath = shard.getDao().getCommittedPathFor(requestKey);
-        if (filePath.isPresent()) {
-            IValue value = shard.getFileSystem().getValueFrom(Paths.get(filePath.get()));
-            if (value.get().isPresent()) {
-                return communicationChain.withValueResponse(value);
+        String fileLocation = shard.getPath() + "/" + requestKey.get() + ".data";
+
+        try {
+            locks.readLock(fileLocation.intern());
+
+            Path filePath = Paths.get(fileLocation);
+            if (Files.exists(filePath)) {
+                IValue value = shard.getFileSystem().getValueFrom(filePath);
+                if (value.get().isPresent()) {
+                    return communicationChain.withValueResponse(value);
+                }
+                else {
+                    return communicationChain.withEmptyResponse();
+                }
             }
             else {
                 return communicationChain.withEmptyResponse();
             }
         }
-        else {
-            return communicationChain.withEmptyResponse();
+        finally {
+            locks.readUnlock(fileLocation);
         }
     }
 
     private CommunicationChain processPutRequest(CommunicationChain communicationChain, IKey requestKey, Shard shard, PutRequest putRequest) {
-        Timestamp timestamp = new Timestamp(Instant.now().toEpochMilli());
-        String filePath = shard.getPath() + "/" + requestKey.get() + "$" + UUID.randomUUID() + ".data";
+        String filePath = shard.getPath() + "/" + requestKey.get() + ".data";
 
-        boolean isUpdatingRecordAdded = shard.getDao().addUpdatingEntry(timestamp, requestKey, filePath);
-        if ( !isUpdatingRecordAdded ) {
-            LOG.error("Unable to create a write ahead log record for the '{}' key.", requestKey.get());
-            return communicationChain.withFailedResponse();
+        try {
+            locks.writeLock(filePath.intern());
+
+
+            boolean newFileAdded = shard.getFileSystem().createOrReplaceFileWithValue(Paths.get(filePath), putRequest.getValue());
+            if ( !newFileAdded ) {
+                LOG.error("Unable to create a new file for the '{}' key.", requestKey.get());
+                return communicationChain.withFailedResponse();
+            }
+
+            return communicationChain.withSuccessResponse();
         }
-
-        boolean newFileAdded = shard.getFileSystem().createNewFileWithValue(Paths.get(filePath), putRequest.getValue());
-        if ( !newFileAdded ) {
-            LOG.error("Unable to create a new file for the '{}' key.", requestKey.get());
-            return communicationChain.withFailedResponse();
+        finally {
+            locks.writeUnlock(filePath);
         }
-
-        boolean entryCommitted = shard.getDao().commitEntry(timestamp, requestKey);
-        if ( !entryCommitted ) {
-            LOG.error("Unable to commit a white ahead log record for the '{}' key.", requestKey.get());
-            return communicationChain.withFailedResponse();
-        }
-
-
-        return communicationChain.withSuccessResponse();
     }
 
     private int getHashCodeFrom(IKey key) {

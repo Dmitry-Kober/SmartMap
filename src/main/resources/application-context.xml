@@ -17,31 +17,15 @@
         <property name="locations">
             <list>
                 <value>classpath:configuration.properties</value>
-                <value>classpath:datasource.properties</value>
             </list>
         </property>
     </bean>
 
     <bean id="shard1" class="org.smartsoftware.smartmap.request.manager.Shard">
-        <constructor-arg index="0" value="${shard1.datasource.path}"/>
+        <constructor-arg index="0" value="${shard1.path}"/>
         <constructor-arg index="1">
-            <bean class="org.smartsoftware.smartmap.request.manager.datasource.SqliteShardDAO">
-                <constructor-arg index="0" value="${shard1.datasource.path}"/>
-                <constructor-arg index="1">
-                    <bean class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close" lazy-init="true">
-                        <property name="driverClassName" value="org.sqlite.JDBC"/>
-                        <property name="url" value="${shard1.datasource.url}"/>
-                        <property name="initialSize" value="1"/>
-                        <property name="maxActive" value="1"/>
-                        <property name="maxIdle" value="1"/>
-                        <property name="poolPreparedStatements" value="true"/>
-                    </bean>
-                </constructor-arg>
-            </bean>
-        </constructor-arg>
-        <constructor-arg index="2">
             <bean class="org.smartsoftware.smartmap.request.manager.filesystem.FileSystemShard">
-                <constructor-arg index="0" value="${shard1.datasource.path}"/>
+                <constructor-arg index="0" value="${shard1.path}"/>
             </bean>
         </constructor-arg>
     </bean>
