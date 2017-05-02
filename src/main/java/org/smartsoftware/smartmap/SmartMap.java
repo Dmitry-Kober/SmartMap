@@ -11,8 +11,10 @@ import org.smartsoftware.smartmap.domain.communication.response.ValueResponse;
 import org.smartsoftware.smartmap.domain.data.ByteArrayValue;
 import org.smartsoftware.smartmap.domain.data.StringKey;
 import org.smartsoftware.smartmap.request.manager.HashBasedRequestManager;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import org.smartsoftware.smartmap.request.manager.IRequestManager;
+import org.smartsoftware.smartmap.request.manager.Shard;
+import org.smartsoftware.smartmap.request.manager.filesystem.FileSystemShard;
+import org.smartsoftware.smartmap.request.manager.filesystem.IFileSystemShard;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -20,11 +22,18 @@ import java.util.Collections;
 /**
  * Created by dkober on 25.4.2017 г..
  */
-@Component
 public class SmartMap implements ISmartMap {
 
-    @Autowired
-    private HashBasedRequestManager requestManager;
+    private final IRequestManager requestManager;
+
+    public SmartMap() {
+        IFileSystemShard fileSystemShard = new FileSystemShard("smartmap");
+        requestManager = new HashBasedRequestManager(
+                Collections.singletonList(
+                        new Shard("shard1", fileSystemShard)
+                )
+        );
+    }
 
     @Override
     public byte[] get(String key) {

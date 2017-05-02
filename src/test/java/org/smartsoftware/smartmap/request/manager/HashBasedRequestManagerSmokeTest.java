@@ -3,7 +3,6 @@ package org.smartsoftware.smartmap.request.manager;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.smartsoftware.smartmap.domain.communication.CommunicationChain;
 import org.smartsoftware.smartmap.domain.communication.request.*;
 import org.smartsoftware.smartmap.domain.communication.response.EmptyResponse;
@@ -12,15 +11,15 @@ import org.smartsoftware.smartmap.domain.communication.response.SuccessResponse;
 import org.smartsoftware.smartmap.domain.communication.response.ValueResponse;
 import org.smartsoftware.smartmap.domain.data.ByteArrayValue;
 import org.smartsoftware.smartmap.domain.data.StringKey;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.smartsoftware.smartmap.request.manager.filesystem.FileSystemShard;
+import org.smartsoftware.smartmap.request.manager.filesystem.IFileSystemShard;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,15 +32,19 @@ import static org.junit.Assert.assertTrue;
 /**
  * Created by Dmitry on 23.04.2017.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(locations = {"classpath:test-context.xml"})
 public class HashBasedRequestManagerSmokeTest {
 
-    @Autowired
     private HashBasedRequestManager requestManager;
 
     @Before
     public void setUp() throws IOException {
+        IFileSystemShard fileSystemShard = new FileSystemShard("smartmap");
+        requestManager = new HashBasedRequestManager(
+                Collections.singletonList(
+                        new Shard("shard1", fileSystemShard)
+                )
+        );
+
         Path shardPath = Paths.get(getShard().getPath());
         Files.list(shardPath).forEach(file -> file.toFile().delete());
     }

@@ -23,7 +23,7 @@ public class FileSystemShard implements IFileSystemShard {
 
     private String shardLocation;
 
-    FileSystemShard(String shardLocation) {
+    public FileSystemShard(String shardLocation) {
         this.shardLocation = shardLocation;
     }
 

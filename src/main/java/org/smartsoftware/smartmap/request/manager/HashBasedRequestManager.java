@@ -7,7 +7,6 @@ import org.smartsoftware.smartmap.domain.communication.request.*;
 import org.smartsoftware.smartmap.domain.data.IKey;
 import org.smartsoftware.smartmap.domain.data.IValue;
 import org.smartsoftware.smartmap.utils.KeyedReentrantLock;
-import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.nio.file.Files;
@@ -19,7 +18,6 @@ import java.util.stream.Collectors;
 /**
  * Created by Dmitry on 23.04.2017.
  */
-@Component
 public class HashBasedRequestManager implements IRequestManager {
 
     private static final Logger LOG = LoggerFactory.getLogger(HashBasedRequestManager.class);

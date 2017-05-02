@@ -10,10 +10,6 @@
         </encoder>
     </appender>
 
-    <logger name="org.springframework" level="OFF" />
-    <logger name="org.springframework.jdbc.core.JdbcTemplate" level="DEBUG"/>
-    <logger name="org.springframework.jdbc.core.StatementCreatorUtils" level="TRACE"/>
-
     <root level="TRACE">
         <appender-ref ref="STDOUT" />
     </root>
