@@ -1,19 +1,17 @@
 package org.smartsoftware.smartmap.domain.communication.request;
 
-import org.smartsoftware.smartmap.domain.data.IKey;
-
 /**
  * Created by Dmitry on 23.04.2017.
  */
 public class RemoveRequest implements IRequest {
 
-    private final IKey key;
+    private final String key;
 
-    public RemoveRequest(IKey key) {
+    public RemoveRequest(String key) {
         this.key = key;
     }
 
-    public IKey getKey() {
+    public String getKey() {
         return key;
     }
 }

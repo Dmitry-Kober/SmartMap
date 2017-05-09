@@ -2,9 +2,6 @@ package org.smartsoftware.smartmap.request.manager.filesystem;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.smartsoftware.smartmap.domain.data.ByteArrayValue;
-import org.smartsoftware.smartmap.domain.data.EmptyValue;
-import org.smartsoftware.smartmap.domain.data.IValue;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -21,6 +18,7 @@ import java.util.stream.Collectors;
 public class FileSystemShard implements IFileSystemShard {
 
     private static final Logger LOG = LoggerFactory.getLogger(FileSystemShard.class);
+    private static final String TMP_FILE_SUFFIX = "_tmp";
 
     private final String shardLocation;
 
@@ -41,19 +39,57 @@ public class FileSystemShard implements IFileSystemShard {
     }
 
     @Override
-    public boolean createOrReplaceFileWithValue(Path path, IValue value) {
+    public void restore() {
+        Set<String> tmpFiles = listAllFilesInShardMatching(Paths.get(shardLocation), ".*" + TMP_FILE_SUFFIX);
+        tmpFiles.stream().forEach(path -> {
+            String absTmpFilePath = shardLocation + "/" + path;
+            Path tmpFilePath = Paths.get(absTmpFilePath);
+            byte[] tmpValue = new byte[0];
+            try {
+                tmpValue = Files.readAllBytes(tmpFilePath);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            Path valueFilePath = Paths.get(absTmpFilePath.substring(0, absTmpFilePath.lastIndexOf(TMP_FILE_SUFFIX)));
+            try (OutputStream outputStream = Files.newOutputStream(valueFilePath)) {
+                outputStream.write(tmpValue);
+            }
+            catch (IOException e) {
+                LOG.error("Unable to create the '{}' temporary file. ", valueFilePath, e);
+            }
+
+            try {
+                Files.deleteIfExists(tmpFilePath);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    @Override
+    public boolean createOrReplaceFileWithValue(Path path, byte[] value) {
         String absolutePath = path.toFile().getAbsolutePath();
         try {
-            Files.deleteIfExists(path);
-            Files.createFile(path);
-            value.get().ifPresent(data -> {
-                try (OutputStream outputStream = Files.newOutputStream(path)) {
-                    outputStream.write(value.get().orElse(new byte[0]));
-                }
-                catch (IOException e) {
-                    LOG.error("Unable to enrich the '{}' file. ", absolutePath, e);
-                }
-            });
+            Path tmpFileAbsPath = Paths.get(absolutePath + TMP_FILE_SUFFIX);
+
+            try (OutputStream outputStream = Files.newOutputStream(tmpFileAbsPath)) {
+                outputStream.write(value);
+            }
+            catch (IOException e) {
+                LOG.error("Unable to create the '{}' temporary file. ", absolutePath, e);
+                return false;
+            }
+
+            try (OutputStream outputStream = Files.newOutputStream(path)) {
+                outputStream.write(value);
+            }
+            catch (IOException e) {
+                LOG.error("Unable to enrich the '{}' file. ", absolutePath, e);
+                return false;
+            }
+
+            Files.deleteIfExists(tmpFileAbsPath);
         }
         catch (IOException e) {
             LOG.error("Unable to create the '{}' file. ", absolutePath, e);
@@ -89,9 +125,9 @@ public class FileSystemShard implements IFileSystemShard {
     }
 
     @Override
-    public IValue getValueFrom(Path path) {
+    public byte[] getValueFrom(Path path) {
         if ( !Files.exists(path) ) {
-            return new EmptyValue();
+            return new byte[0];
         }
 
         byte[] data;
@@ -100,9 +136,9 @@ public class FileSystemShard implements IFileSystemShard {
         }
         catch (IOException e) {
             LOG.error("Unable to read the '{}' file.", path.toFile().getAbsolutePath(), e);
-            return new ByteArrayValue();
+            return new byte[0];
         }
 
-        return new ByteArrayValue(data);
+        return data;
     }
 }

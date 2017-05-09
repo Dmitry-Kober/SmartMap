@@ -14,6 +14,7 @@ public class Shard {
     public Shard(String path) {
         this.path = path;
         this.fileSystem = new FileSystemShard(path);
+        fileSystem.restore();
     }
 
     public String getPath() {

@@ -4,8 +4,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.smartsoftware.smartmap.domain.communication.CommunicationChain;
 import org.smartsoftware.smartmap.domain.communication.request.*;
-import org.smartsoftware.smartmap.domain.data.IKey;
-import org.smartsoftware.smartmap.domain.data.IValue;
 import org.smartsoftware.smartmap.utils.KeyedReentrantLock;
 
 import java.nio.file.Paths;
@@ -33,23 +31,23 @@ public class HashBasedRequestManager implements IRequestManager {
         IRequest request = communicationChain.getRequest();
 
         if (request instanceof PutRequest) {
-            IKey requestKey = request.getKey();
+            String requestKey = request.getKey();
             Shard shard = identifyShardFor(requestKey);
-            LOG.trace("Processing a Put request for the '{}' key on the '{}' shard.", requestKey.get(), shard.getPath());
+            LOG.trace("Processing a Put request for the '{}' key on the '{}' shard.", requestKey, shard.getPath());
 
             return processPutRequest(communicationChain, requestKey, shard, (PutRequest) request);
         }
         else if (request instanceof GetRequest) {
-            IKey requestKey = request.getKey();
+            String requestKey = request.getKey();
             Shard shard = identifyShardFor(requestKey);
-            LOG.trace("Processing a Get request for the '{}' key on the '{}' shard.", requestKey.get(), shard.getPath());
+            LOG.trace("Processing a Get request for the '{}' key on the '{}' shard.", requestKey, shard.getPath());
 
             return processGetRequest(communicationChain, requestKey, shard);
         }
         else if (request instanceof RemoveRequest) {
-            IKey requestKey = request.getKey();
+            String requestKey = request.getKey();
             Shard shard = identifyShardFor(requestKey);
-            LOG.trace("Processing a Remove request for the '{}' key on the '{}' shard.", requestKey.get(), shard.getPath());
+            LOG.trace("Processing a Remove request for the '{}' key on the '{}' shard.", requestKey, shard.getPath());
 
             return processRemoveRequest(communicationChain, requestKey, shard);
         }
@@ -62,7 +60,7 @@ public class HashBasedRequestManager implements IRequestManager {
         }
     }
 
-    private Shard identifyShardFor(IKey requestKey) {
+    private Shard identifyShardFor(String requestKey) {
         return shards.get(getHashCodeFrom(requestKey) % shards.size());
     }
 
@@ -82,15 +80,15 @@ public class HashBasedRequestManager implements IRequestManager {
         return communicationChain.withListResponse(allLatestCommittedKeys);
     }
 
-    private CommunicationChain processRemoveRequest(CommunicationChain communicationChain, IKey requestKey, Shard shard) {
-        String fileLocation = shard.getPath() + "/" + requestKey.get() + ".data";
+    private CommunicationChain processRemoveRequest(CommunicationChain communicationChain, String requestKey, Shard shard) {
+        String fileLocation = shard.getPath() + "/" + requestKey + ".data";
 
         try {
             locks.writeLock(fileLocation.intern());
 
             boolean filesIsRemoved = shard.getFileSystem().removeFile(Paths.get(fileLocation));
             if ( !filesIsRemoved ) {
-                LOG.error("Unable to remove a file for the '{}' key.", requestKey.get());
+                LOG.error("Unable to remove a file for the '{}' key.", requestKey);
                 return communicationChain.withFailedResponse();
             }
 
@@ -101,14 +99,14 @@ public class HashBasedRequestManager implements IRequestManager {
         }
     }
 
-    private CommunicationChain processGetRequest(CommunicationChain communicationChain, IKey requestKey, Shard shard) {
-        String fileLocation = shard.getPath() + "/" + requestKey.get() + ".data";
+    private CommunicationChain processGetRequest(CommunicationChain communicationChain, String requestKey, Shard shard) {
+        String fileLocation = shard.getPath() + "/" + requestKey + ".data";
 
         try {
             locks.readLock(fileLocation.intern());
 
-            IValue value = shard.getFileSystem().getValueFrom(Paths.get(fileLocation));
-            if (value.get().isPresent()) {
+            byte[] value = shard.getFileSystem().getValueFrom(Paths.get(fileLocation));
+            if (value.length != 0) {
                 return communicationChain.withValueResponse(value);
             }
             else {
@@ -120,16 +118,15 @@ public class HashBasedRequestManager implements IRequestManager {
         }
     }
 
-    private CommunicationChain processPutRequest(CommunicationChain communicationChain, IKey requestKey, Shard shard, PutRequest putRequest) {
-        String filePath = shard.getPath() + "/" + requestKey.get() + ".data";
+    private CommunicationChain processPutRequest(CommunicationChain communicationChain, String requestKey, Shard shard, PutRequest putRequest) {
+        String filePath = shard.getPath() + "/" + requestKey + ".data";
 
         try {
             locks.writeLock(filePath.intern());
 
-
             boolean newFileAdded = shard.getFileSystem().createOrReplaceFileWithValue(Paths.get(filePath), putRequest.getValue());
             if ( !newFileAdded ) {
-                LOG.error("Unable to create a new file for the '{}' key.", requestKey.get());
+                LOG.error("Unable to create a new file for the '{}' key.", requestKey);
                 return communicationChain.withFailedResponse();
             }
 
@@ -140,7 +137,7 @@ public class HashBasedRequestManager implements IRequestManager {
         }
     }
 
-    private int getHashCodeFrom(IKey key) {
-        return key.get().hashCode();
+    private int getHashCodeFrom(String key) {
+        return key.hashCode();
     }
 }

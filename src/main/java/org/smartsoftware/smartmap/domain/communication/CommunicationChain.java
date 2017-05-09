@@ -2,7 +2,6 @@ package org.smartsoftware.smartmap.domain.communication;
 
 import org.smartsoftware.smartmap.domain.communication.request.IRequest;
 import org.smartsoftware.smartmap.domain.communication.response.*;
-import org.smartsoftware.smartmap.domain.data.IValue;
 
 import java.util.List;
 
@@ -46,7 +45,7 @@ public class CommunicationChain {
         return this;
     }
 
-    public CommunicationChain withValueResponse(IValue value) {
+    public CommunicationChain withValueResponse(byte[] value) {
         checkResponseSetUpAlready();
         this.setResponse(new ValueResponse(value));
         return this;

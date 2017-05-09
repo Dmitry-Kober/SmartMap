@@ -8,8 +8,6 @@ import org.smartsoftware.smartmap.domain.communication.request.RemoveRequest;
 import org.smartsoftware.smartmap.domain.communication.response.IResponse;
 import org.smartsoftware.smartmap.domain.communication.response.ListResponse;
 import org.smartsoftware.smartmap.domain.communication.response.ValueResponse;
-import org.smartsoftware.smartmap.domain.data.ByteArrayValue;
-import org.smartsoftware.smartmap.domain.data.StringKey;
 import org.smartsoftware.smartmap.request.manager.HashBasedRequestManager;
 import org.smartsoftware.smartmap.request.manager.IRequestManager;
 import org.smartsoftware.smartmap.request.manager.Shard;
@@ -33,11 +31,11 @@ public class SmartMap implements ISmartMap {
     @Override
     public byte[] get(String key) {
         CommunicationChain communicationChain = requestManager.onRequest(
-                new CommunicationChain(new GetRequest(new StringKey(key)))
+                new CommunicationChain(new GetRequest(key))
         );
         IResponse response = communicationChain.getResponse();
         if (response instanceof ValueResponse) {
-            return ((ValueResponse) response).getValue().get().get();
+            return ((ValueResponse) response).getValue();
         }
         else {
             return new byte[0];
@@ -47,14 +45,14 @@ public class SmartMap implements ISmartMap {
     @Override
     public void put(String key, byte[] value) {
         requestManager.onRequest(
-                new CommunicationChain(new PutRequest(new StringKey(key), new ByteArrayValue(value)))
+                new CommunicationChain(new PutRequest(key, value))
         );
     }
 
     @Override
     public void remove(String key) {
         requestManager.onRequest(
-            new CommunicationChain(new RemoveRequest(new StringKey(key)))
+            new CommunicationChain(new RemoveRequest(key))
         );
     }
 
