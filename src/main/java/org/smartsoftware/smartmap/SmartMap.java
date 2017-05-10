@@ -2,72 +2,107 @@ package org.smartsoftware.smartmap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.smartsoftware.smartmap.domain.communication.CommunicationChain;
-import org.smartsoftware.smartmap.domain.communication.request.GetRequest;
-import org.smartsoftware.smartmap.domain.communication.request.ListRequest;
-import org.smartsoftware.smartmap.domain.communication.request.PutRequest;
-import org.smartsoftware.smartmap.domain.communication.request.RemoveRequest;
-import org.smartsoftware.smartmap.domain.communication.response.IResponse;
-import org.smartsoftware.smartmap.domain.communication.response.ListResponse;
-import org.smartsoftware.smartmap.domain.communication.response.ValueResponse;
-import org.smartsoftware.smartmap.request.manager.HashBasedRequestManager;
-import org.smartsoftware.smartmap.request.manager.IRequestManager;
-import org.smartsoftware.smartmap.request.manager.Shard;
+import org.smartsoftware.smartmap.filesystem.FileSystemShard;
+import org.smartsoftware.smartmap.filesystem.IFileSystemShard;
+import org.smartsoftware.smartmap.utils.KeyedReentrantLock;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.Collections;
+import java.nio.file.Paths;
 
 /**
  * Created by dkober on 25.4.2017 г..
  */
 public class SmartMap implements ISmartMap {
 
-    private static final Logger LOG = LoggerFactory.getLogger(SmartMap.class);
+    private static final String WORKING_FOLDER = "repository";
 
-    private final IRequestManager requestManager;
+    private static final Logger LOG = LoggerFactory.getLogger(SmartMap.class);
+    private final KeyedReentrantLock<String> locks = new KeyedReentrantLock<>();
+
+    private final IFileSystemShard fileSystem;
 
     public SmartMap() {
-        requestManager = new HashBasedRequestManager(
-                Collections.singletonList(new Shard("shard1"))
-        );
+        this.fileSystem = new FileSystemShard(WORKING_FOLDER);
     }
 
     @Override
     public byte[] get(String key) {
-        CommunicationChain communicationChain = requestManager.onRequest(
-                new CommunicationChain(new GetRequest(key))
-        );
-        IResponse response = communicationChain.getResponse();
-        if (response instanceof ValueResponse) {
-            return ((ValueResponse) response).getValue();
+        String filePath = WORKING_FOLDER + "/" + key + ".data";
+
+        try {
+            locks.readLock(filePath.intern());
+
+            byte[] value = fileSystem.getValueFrom(Paths.get(filePath));
+            if (value.length != 0) {
+                return value;
+            }
+            else {
+                return new byte[0];
+            }
         }
-        else {
-            return new byte[0];
+        finally {
+            locks.readUnlock(filePath);
         }
     }
 
     @Override
-    public void put(String key, byte[] value) {
-        requestManager.onRequest(
-                new CommunicationChain(new PutRequest(key, value))
-        );
+    public boolean put(String key, byte[] value) {
+        String filePath = WORKING_FOLDER + "/" + key + ".data";
+
+        try {
+            locks.writeLock(filePath.intern());
+
+            boolean newFileAdded = fileSystem.createOrReplaceFileWithValue(Paths.get(filePath), value);
+            if ( !newFileAdded ) {
+                LOG.error("Unable to create a new file for the '{}' key.", key);
+                return false;
+            }
+
+            return true;
+        }
+        finally {
+            locks.writeUnlock(filePath);
+        }
     }
 
     @Override
-    public void remove(String key) {
-        requestManager.onRequest(
-            new CommunicationChain(new RemoveRequest(key))
-        );
+    public boolean remove(String key) {
+        String filePath = WORKING_FOLDER + "/" + key + ".data";
+
+        try {
+            locks.writeLock(filePath.intern());
+
+            boolean filesIsRemoved = fileSystem.removeFile(Paths.get(filePath));
+            if ( !filesIsRemoved ) {
+                LOG.error("Unable to remove a file for the '{}' key.", key);
+                return false;
+            }
+
+            return true;
+        }
+        finally {
+            locks.writeUnlock(filePath);
+        }
     }
 
     @Override
     public byte[] list() {
-        CommunicationChain communicationChain = requestManager.onRequest(
-                new CommunicationChain(new ListRequest())
-        );
-        IResponse response = communicationChain.getResponse();
-        return ((ListResponse) response).get();
+        File register = fileSystem.createShardRegister(Paths.get(WORKING_FOLDER));
+        try {
+            return Files.readAllBytes(register.toPath());
+        }
+        catch (IOException e) {
+            return new byte[0];
+        }
+        finally {
+            try {
+                Files.deleteIfExists(register.toPath());
+            }
+            catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 }

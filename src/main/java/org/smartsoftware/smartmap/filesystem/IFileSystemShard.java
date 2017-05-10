@@ -1,8 +1,7 @@
-package org.smartsoftware.smartmap.request.manager.filesystem;
+package org.smartsoftware.smartmap.filesystem;
 
 import java.io.File;
 import java.nio.file.Path;
-import java.util.Set;
 
 /**
  * Created by dkober on 24.4.2017 г..

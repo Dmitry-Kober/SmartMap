@@ -1,4 +1,4 @@
-package org.smartsoftware.smartmap.request.manager.filesystem;
+package org.smartsoftware.smartmap.filesystem;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,7 +10,6 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
 
 /**
  * Created by dkober on 24.4.2017 г..

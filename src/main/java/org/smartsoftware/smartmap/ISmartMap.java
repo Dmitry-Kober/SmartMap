@@ -9,8 +9,8 @@ import java.util.Collection;
 public interface ISmartMap {
 
     byte[] get(String key);
-    void put(String key, byte[] value);
-    void remove(String key);
+    boolean put(String key, byte[] value);
+    boolean remove(String key);
     byte[] list();
 
 }

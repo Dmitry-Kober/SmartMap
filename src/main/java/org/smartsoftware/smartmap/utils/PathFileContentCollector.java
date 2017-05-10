@@ -33,7 +33,7 @@ public class PathFileContentCollector implements Collector<Path, Map<String, byt
     public PathFileContentCollector(Path shardPath) {
         this.shardPath = shardPath;
         try {
-            Path registerFilePath = Paths.get(shardPath.toFile().getAbsolutePath() + "/local_register_" + System.currentTimeMillis());
+            Path registerFilePath = Paths.get(shardPath.toFile().getAbsolutePath() + "/register_" + System.currentTimeMillis());
             targetFile = Files.createFile(registerFilePath);
         }
         catch (IOException e) {
