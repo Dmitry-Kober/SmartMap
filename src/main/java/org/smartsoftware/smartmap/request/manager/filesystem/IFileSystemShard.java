@@ -1,5 +1,6 @@
 package org.smartsoftware.smartmap.request.manager.filesystem;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.util.Set;
 
@@ -12,7 +13,7 @@ public interface IFileSystemShard {
 
     boolean createOrReplaceFileWithValue(Path path, byte[] value);
     boolean removeFile(Path path);
-    Set<String> listAllFilesInShardMatching(Path path, String mask);
+    File createShardRegister(Path path);
 
     byte[] getValueFrom(Path path);
 }

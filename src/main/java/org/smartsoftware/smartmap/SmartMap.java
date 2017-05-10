@@ -1,8 +1,10 @@
 package org.smartsoftware.smartmap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.smartsoftware.smartmap.domain.communication.CommunicationChain;
 import org.smartsoftware.smartmap.domain.communication.request.GetRequest;
-import org.smartsoftware.smartmap.domain.communication.request.ListKeysRequest;
+import org.smartsoftware.smartmap.domain.communication.request.ListRequest;
 import org.smartsoftware.smartmap.domain.communication.request.PutRequest;
 import org.smartsoftware.smartmap.domain.communication.request.RemoveRequest;
 import org.smartsoftware.smartmap.domain.communication.response.IResponse;
@@ -12,13 +14,17 @@ import org.smartsoftware.smartmap.request.manager.HashBasedRequestManager;
 import org.smartsoftware.smartmap.request.manager.IRequestManager;
 import org.smartsoftware.smartmap.request.manager.Shard;
 
-import java.util.Collection;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Collections;
 
 /**
  * Created by dkober on 25.4.2017 г..
  */
 public class SmartMap implements ISmartMap {
+
+    private static final Logger LOG = LoggerFactory.getLogger(SmartMap.class);
 
     private final IRequestManager requestManager;
 
@@ -57,16 +63,11 @@ public class SmartMap implements ISmartMap {
     }
 
     @Override
-    public Collection<String> listKeys() {
+    public byte[] list() {
         CommunicationChain communicationChain = requestManager.onRequest(
-                new CommunicationChain(new ListKeysRequest())
+                new CommunicationChain(new ListRequest())
         );
         IResponse response = communicationChain.getResponse();
-        if (response instanceof ListResponse) {
-            return ((ListResponse) response).get();
-        }
-        else {
-            return Collections.emptySet();
-        }
+        return ((ListResponse) response).get();
     }
 }

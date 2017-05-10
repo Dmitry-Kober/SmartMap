@@ -1,20 +1,19 @@
 package org.smartsoftware.smartmap.domain.communication.response;
 
-import java.util.LinkedList;
-import java.util.List;
+import java.io.File;
 
 /**
  * Created by dkober on 25.4.2017 г..
  */
 public class ListResponse implements IResponse {
 
-    private final List<String> list = new LinkedList<>();
+    private final byte[] register;
 
-    public ListResponse(List<String> list) {
-        this.list.addAll(list);
+    public ListResponse(byte[] register) {
+        this.register = register;
     }
 
-    public List<String> get() {
-        return new LinkedList<>(list);
+    public byte[] get() {
+        return register;
     }
 }

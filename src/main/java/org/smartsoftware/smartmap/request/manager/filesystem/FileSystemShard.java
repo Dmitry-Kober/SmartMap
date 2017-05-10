@@ -2,15 +2,15 @@ package org.smartsoftware.smartmap.request.manager.filesystem;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.smartsoftware.smartmap.utils.PathFileContentCollector;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.*;
 
 /**
  * Created by dkober on 24.4.2017 г..
@@ -25,7 +25,7 @@ public class FileSystemShard implements IFileSystemShard {
     public FileSystemShard(String shardLocation) {
         this.shardLocation = shardLocation;
 
-        LOG.trace("Initializing a File System for the: {} shard", shardLocation);
+        LOG.trace("Initializing a File System for the: '{}' shard", shardLocation);
 
         try {
             Path shardPath = Paths.get(shardLocation);
@@ -40,31 +40,38 @@ public class FileSystemShard implements IFileSystemShard {
 
     @Override
     public void restore() {
-        Set<String> tmpFiles = listAllFilesInShardMatching(Paths.get(shardLocation), ".*" + TMP_FILE_SUFFIX);
-        tmpFiles.stream().forEach(path -> {
-            String absTmpFilePath = shardLocation + "/" + path;
-            Path tmpFilePath = Paths.get(absTmpFilePath);
-            byte[] tmpValue = new byte[0];
-            try {
-                tmpValue = Files.readAllBytes(tmpFilePath);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+        try {
+            Files
+                .find(Paths.get(shardLocation), Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(".*" + TMP_FILE_SUFFIX))
+                .forEach(path -> {
+                    String absTmpFilePath = path.toFile().getAbsolutePath();
+                    Path tmpFilePath = Paths.get(absTmpFilePath);
+                    byte[] tmpValue = new byte[0];
+                    try {
+                        tmpValue = Files.readAllBytes(tmpFilePath);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
 
-            Path valueFilePath = Paths.get(absTmpFilePath.substring(0, absTmpFilePath.lastIndexOf(TMP_FILE_SUFFIX)));
-            try (OutputStream outputStream = Files.newOutputStream(valueFilePath)) {
-                outputStream.write(tmpValue);
-            }
-            catch (IOException e) {
-                LOG.error("Unable to create the '{}' temporary file. ", valueFilePath, e);
-            }
+                    Path valueFilePath = Paths.get(absTmpFilePath.substring(0, absTmpFilePath.lastIndexOf(TMP_FILE_SUFFIX)));
+                    try (OutputStream outputStream = Files.newOutputStream(valueFilePath)) {
+                        outputStream.write(tmpValue);
+                    }
+                    catch (IOException e) {
+                        LOG.error("Unable to create the '{}' temporary file. ", valueFilePath, e);
+                    }
 
-            try {
-                Files.deleteIfExists(tmpFilePath);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
+                    try {
+                        Files.deleteIfExists(tmpFilePath);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
+        }
+        catch (IOException e) {
+            LOG.error("Cannot restore the '{}' shard from temporary files.", shardLocation, e);
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -100,16 +107,15 @@ public class FileSystemShard implements IFileSystemShard {
     }
 
     @Override
-    public Set<String> listAllFilesInShardMatching(Path shardPath, String fileNameMask) {
+    public File createShardRegister(Path shardPath) {
         try {
             return Files
-                    .find(shardPath, Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(fileNameMask))
-                    .map(path -> path.toFile().getName())
-                    .collect(Collectors.toSet());
+                    .find(shardPath, Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(".*data"))
+                    .collect(new PathFileContentCollector(shardPath));
         }
         catch (IOException e) {
-            LOG.error("Unable to remove files from the '{}' shard with the '{}' mask.", new Object[] {shardLocation, fileNameMask}, e);
-            return Collections.emptySet();
+            LOG.error("Cannot create a local register for the '{}' shard.", shardLocation, e);
+            return new File(shardLocation + "/local_register_empty" + System.currentTimeMillis());
         }
     }
 
@@ -119,7 +125,7 @@ public class FileSystemShard implements IFileSystemShard {
             return Files.deleteIfExists(path);
         }
         catch (IOException e) {
-            LOG.error("Unable to remove the '{}' file from the '{}' shard .", new Object[]{path.toFile().getAbsolutePath(), shardLocation}, e);
+            LOG.error("Unable to remove the '{}' file.", path.toFile().getAbsolutePath(), e);
             return false;
         }
     }
@@ -130,15 +136,12 @@ public class FileSystemShard implements IFileSystemShard {
             return new byte[0];
         }
 
-        byte[] data;
         try {
-            data = Files.readAllBytes(path);
+            return Files.readAllBytes(path);
         }
         catch (IOException e) {
             LOG.error("Unable to read the '{}' file.", path.toFile().getAbsolutePath(), e);
             return new byte[0];
         }
-
-        return data;
     }
 }

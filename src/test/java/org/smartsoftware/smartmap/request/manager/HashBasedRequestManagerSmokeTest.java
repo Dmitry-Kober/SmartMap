@@ -11,6 +11,7 @@ import org.smartsoftware.smartmap.domain.communication.response.ListResponse;
 import org.smartsoftware.smartmap.domain.communication.response.SuccessResponse;
 import org.smartsoftware.smartmap.domain.communication.response.ValueResponse;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
@@ -113,17 +114,20 @@ public class HashBasedRequestManagerSmokeTest {
     }
 
     @Test
-    public void shouldListAllLatestCommittedKeys() {
+    public void shouldListAllKeyValuePairs() throws IOException {
         requestManager.onRequest(new CommunicationChain(new PutRequest("list_key_1", "list_value_1".getBytes())));
         requestManager.onRequest(new CommunicationChain(new PutRequest("list_key_2", "list_value_2".getBytes())));
 
-        IRequest listRequest = new ListKeysRequest();
+        IRequest listRequest = new ListRequest();
         CommunicationChain communicationChain = requestManager.onRequest(new CommunicationChain(listRequest));
         assertThat(
                 communicationChain.getResponse(),
                 allOf(notNullValue(), instanceOf(ListResponse.class) )
         );
-        assertThat(((ListResponse)communicationChain.getResponse()).get(), allOf(hasItem("list_key_2"), hasItem("list_key_1")));
+
+        String registerFileContent = new String(((ListResponse) communicationChain.getResponse()).get());
+        assertTrue(registerFileContent.contains("list_key_2"));
+        assertTrue(registerFileContent.contains("list_key_1"));
     }
 
     @Test
@@ -229,11 +233,6 @@ public class HashBasedRequestManagerSmokeTest {
     public void tearDown() throws IOException {
         Path shardPath = Paths.get(getShard().getPath());
         Files.list(shardPath).forEach(file -> file.toFile().delete());
-    }
-
-    @AfterClass
-    public static void deleteFolder() throws IOException {
-        Files.deleteIfExists(Paths.get(SHARD_LOCATION));
     }
 
 }

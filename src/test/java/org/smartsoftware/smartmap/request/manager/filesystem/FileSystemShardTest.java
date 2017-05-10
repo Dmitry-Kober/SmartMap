@@ -14,6 +14,7 @@ import java.nio.file.Paths;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Created by dkober on 9.5.2017 г..
@@ -32,7 +33,7 @@ public class FileSystemShardTest {
     }
 
     @Test
-    public void shouldInitializeFileSystemFromTmpFiles() {
+    public void shouldInitializeFileSystemFromTmpFiles() throws IOException {
         IFileSystemShard fileSystemShard = new FileSystemShard(SHARD_PATH);
 
         String existingDataFilePath = SHARD_PATH + "/existing_file.data";
@@ -44,7 +45,7 @@ public class FileSystemShardTest {
 
         assertThat(new String(getFileBytes(existingDataFilePath, "")), equalTo("existing_overwritten_from_tmp"));
         assertThat(new String(getFileBytes(SHARD_PATH + "/non_existing_file.data", "")), equalTo("non_existing_from_tmp"));
-        assertThat(fileSystemShard.listAllFilesInShardMatching(Paths.get(SHARD_PATH), ".*_tmp").stream().count(), equalTo(0L));
+        assertTrue(Files.find(Paths.get(SHARD_PATH), Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(".*_tmp")).count() == 0);
     }
 
     private byte[] getFileBytes(String path, String defaultValue) {
@@ -68,6 +69,8 @@ public class FileSystemShardTest {
 
     @After
     public void tearDown() throws IOException {
-        Files.list(Paths.get(SHARD_PATH)).forEach(file -> file.toFile().delete());
+        Path shardPath = Paths.get(SHARD_PATH);
+        Files.list(shardPath).forEach(file -> file.toFile().delete());
+        Files.deleteIfExists(shardPath);
     }
 }

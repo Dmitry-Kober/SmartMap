@@ -1,5 +1,6 @@
 package org.smartsoftware.smartmap;
 
+import java.io.File;
 import java.util.Collection;
 
 /**
@@ -10,6 +11,6 @@ public interface ISmartMap {
     byte[] get(String key);
     void put(String key, byte[] value);
     void remove(String key);
-    Collection<String> listKeys();
+    byte[] list();
 
 }

@@ -4,13 +4,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.smartsoftware.smartmap.domain.communication.CommunicationChain;
 import org.smartsoftware.smartmap.domain.communication.request.*;
+import org.smartsoftware.smartmap.utils.FileToFileCollector;
 import org.smartsoftware.smartmap.utils.KeyedReentrantLock;
 
+import java.io.File;
 import java.nio.file.Paths;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Created by Dmitry on 23.04.2017.
@@ -51,9 +50,9 @@ public class HashBasedRequestManager implements IRequestManager {
 
             return processRemoveRequest(communicationChain, requestKey, shard);
         }
-        else if (request instanceof ListKeysRequest) {
-            LOG.trace("Processing a ListKey request.");
-            return processListKeysRequest(communicationChain);
+        else if (request instanceof ListRequest) {
+            LOG.trace("Processing a List request.");
+            return processListRequest(communicationChain);
         }
         else {
             return processUnknownRequest(communicationChain);
@@ -69,15 +68,12 @@ public class HashBasedRequestManager implements IRequestManager {
         return communicationChain.withFailedResponse();
     }
 
-    private CommunicationChain processListKeysRequest(CommunicationChain communicationChain) {
-        List<String> allLatestCommittedKeys = new LinkedList<>();
-        for (Shard shardItem : shards) {
-            Set<String> dataFilesInShard = shardItem.getFileSystem().listAllFilesInShardMatching(Paths.get(shardItem.getPath()), ".*data");
-            allLatestCommittedKeys.addAll(
-                    dataFilesInShard.stream().map(fileName -> fileName.substring(0, fileName.length()-5)).collect(Collectors.toSet())
-            );
-        }
-        return communicationChain.withListResponse(allLatestCommittedKeys);
+    private CommunicationChain processListRequest(CommunicationChain communicationChain) {
+        byte[] registerFile = shards.stream()
+                .map(shardItem -> shardItem.getFileSystem().createShardRegister(Paths.get(shardItem.getPath())))
+                .collect(new FileToFileCollector());
+
+        return communicationChain.withListResponse(registerFile);
     }
 
     private CommunicationChain processRemoveRequest(CommunicationChain communicationChain, String requestKey, Shard shard) {

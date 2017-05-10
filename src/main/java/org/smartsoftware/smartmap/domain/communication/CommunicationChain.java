@@ -3,6 +3,7 @@ package org.smartsoftware.smartmap.domain.communication;
 import org.smartsoftware.smartmap.domain.communication.request.IRequest;
 import org.smartsoftware.smartmap.domain.communication.response.*;
 
+import java.io.File;
 import java.util.List;
 
 /**
@@ -57,9 +58,9 @@ public class CommunicationChain {
         return this;
     }
 
-    public CommunicationChain withListResponse(List<String> list) {
+    public CommunicationChain withListResponse(byte[] register) {
         checkResponseSetUpAlready();
-        this.setResponse(new ListResponse(list));
+        this.setResponse(new ListResponse(register));
         return this;
     }
 
