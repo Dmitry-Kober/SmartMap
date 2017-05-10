@@ -11,7 +11,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.*;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
@@ -28,16 +31,16 @@ public class PathFileContentCollector implements Collector<Path, Map<String, byt
     private static final int THREAD_REGISTER_FLUSH_LIMIT = 10;
 
     private final Path targetFile;
-    private final Path shardPath;
+    private final Path workingFolderPath;
 
-    public PathFileContentCollector(Path shardPath) {
-        this.shardPath = shardPath;
+    public PathFileContentCollector(Path workingFolderPath) {
+        this.workingFolderPath = workingFolderPath;
         try {
-            Path registerFilePath = Paths.get(shardPath.toFile().getAbsolutePath() + "/register_" + System.currentTimeMillis());
+            Path registerFilePath = Paths.get(workingFolderPath.toFile().getAbsolutePath() + "/register_" + System.currentTimeMillis());
             targetFile = Files.createFile(registerFilePath);
         }
         catch (IOException e) {
-            LOG.error("Cannot create a register file for the '{}'.", shardPath.toFile().getAbsolutePath(), e);
+            LOG.error("Cannot create a register file for the '{}'.", workingFolderPath.toFile().getAbsolutePath(), e);
             throw new RuntimeException(e);
         }
     }
@@ -51,7 +54,7 @@ public class PathFileContentCollector implements Collector<Path, Map<String, byt
     public BiConsumer<Map<String, byte[]>, Path> accumulator() {
         return (map, filePath) -> {
             String fileName = filePath.toFile().getName();
-            String absValueFilePath = shardPath.toFile().getAbsolutePath() + "/" + fileName;
+            String absValueFilePath = workingFolderPath.toFile().getAbsolutePath() + "/" + fileName;
             try {
                 byte[] value = Files.readAllBytes(Paths.get(absValueFilePath));
                 map.put(fileName.substring(0, fileName.lastIndexOf(".data")), value);

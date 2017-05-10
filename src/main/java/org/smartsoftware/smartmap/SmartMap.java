@@ -2,8 +2,8 @@ package org.smartsoftware.smartmap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.smartsoftware.smartmap.filesystem.FileSystemShard;
-import org.smartsoftware.smartmap.filesystem.IFileSystemShard;
+import org.smartsoftware.smartmap.filesystem.FileSystemManager;
+import org.smartsoftware.smartmap.filesystem.IFileSystemManager;
 import org.smartsoftware.smartmap.utils.KeyedReentrantLock;
 
 import java.io.File;
@@ -16,20 +16,20 @@ import java.nio.file.Paths;
  */
 public class SmartMap implements ISmartMap {
 
-    private static final String WORKING_FOLDER = "repository";
+    public static final String WORKING_FOLDER = "repository";
 
     private static final Logger LOG = LoggerFactory.getLogger(SmartMap.class);
     private final KeyedReentrantLock<String> locks = new KeyedReentrantLock<>();
 
-    private final IFileSystemShard fileSystem;
+    private final IFileSystemManager fileSystem;
 
     public SmartMap() {
-        this.fileSystem = new FileSystemShard(WORKING_FOLDER);
+        this.fileSystem = new FileSystemManager(WORKING_FOLDER);
     }
 
     @Override
     public byte[] get(String key) {
-        String filePath = WORKING_FOLDER + "/" + key + ".data";
+        final String filePath = WORKING_FOLDER + "/" + key + ".data";
 
         try {
             locks.readLock(filePath.intern());
@@ -49,7 +49,7 @@ public class SmartMap implements ISmartMap {
 
     @Override
     public boolean put(String key, byte[] value) {
-        String filePath = WORKING_FOLDER + "/" + key + ".data";
+        final String filePath = WORKING_FOLDER + "/" + key + ".data";
 
         try {
             locks.writeLock(filePath.intern());
@@ -69,7 +69,7 @@ public class SmartMap implements ISmartMap {
 
     @Override
     public boolean remove(String key) {
-        String filePath = WORKING_FOLDER + "/" + key + ".data";
+        final String filePath = WORKING_FOLDER + "/" + key + ".data";
 
         try {
             locks.writeLock(filePath.intern());
@@ -89,7 +89,7 @@ public class SmartMap implements ISmartMap {
 
     @Override
     public byte[] list() {
-        File register = fileSystem.createShardRegister(Paths.get(WORKING_FOLDER));
+        File register = fileSystem.createRegister(Paths.get(WORKING_FOLDER));
         try {
             return Files.readAllBytes(register.toPath());
         }

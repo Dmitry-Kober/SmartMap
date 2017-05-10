@@ -18,21 +18,21 @@ import static org.junit.Assert.assertTrue;
 /**
  * Created by dkober on 9.5.2017 г..
  */
-public class FileSystemShardTest {
+public class FileSystemManagerTest {
 
-    private static final Logger LOG = LoggerFactory.getLogger(FileSystemShardTest.class);
-    private static final String WORKING_FOLDER = "shard1";
+    private static final Logger LOG = LoggerFactory.getLogger(FileSystemManagerTest.class);
+    private static final String WORKING_FOLDER = "workingFolder1";
 
     @Test
     public void shouldInitializeFileSystemFromTmpFiles() throws IOException {
-        IFileSystemShard fileSystemShard = new FileSystemShard(WORKING_FOLDER);
+        IFileSystemManager fileSystemworkingFolder = new FileSystemManager(WORKING_FOLDER);
 
         String existingDataFilePath = WORKING_FOLDER + "/existing_file.data";
         createFileWithValue(existingDataFilePath, "existing", "Cannot create an exiting tmp file.");
         createFileWithValue(WORKING_FOLDER + "/existing_file.data_tmp", "existing_overwritten_from_tmp", "Cannot create an exiting file.");
         createFileWithValue(WORKING_FOLDER + "/non_existing_file.data_tmp", "non_existing_from_tmp", "Cannot create a non-exiting tmp file.");
 
-        fileSystemShard.restore();
+        fileSystemworkingFolder.restore();
 
         assertThat(new String(getFileBytes(existingDataFilePath, "")), equalTo("existing_overwritten_from_tmp"));
         assertThat(new String(getFileBytes(WORKING_FOLDER + "/non_existing_file.data", "")), equalTo("non_existing_from_tmp"));
@@ -60,8 +60,8 @@ public class FileSystemShardTest {
 
     @After
     public void tearDown() throws IOException {
-        Path shardPath = Paths.get(WORKING_FOLDER);
-        Files.list(shardPath).forEach(file -> file.toFile().delete());
-        Files.deleteIfExists(shardPath);
+        Path workingFolderPath = Paths.get(WORKING_FOLDER);
+        Files.list(workingFolderPath).forEach(file -> file.toFile().delete());
+        Files.deleteIfExists(workingFolderPath);
     }
 }

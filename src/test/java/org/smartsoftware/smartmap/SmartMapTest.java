@@ -19,15 +19,13 @@ import static org.junit.Assert.assertTrue;
  */
 public class SmartMapTest {
 
-    private static final String WORKING_FOLDER = "shard1";
-
     private ISmartMap smartMap = new SmartMap();
 
     @Test
     public void shouldAddOneKeyValuePair() throws IOException {
         smartMap.put("test_key_addition", "test_value_addition".getBytes());
 
-        Path filePath = Paths.get(WORKING_FOLDER + "/test_key_addition.data");
+        Path filePath = Paths.get(SmartMap.WORKING_FOLDER + "/test_key_addition.data");
         assertTrue(Files.exists(filePath));
         assertThat(new String(Files.readAllBytes(filePath)), equalTo("test_value_addition"));
     }
@@ -45,10 +43,10 @@ public class SmartMapTest {
 
         smartMap.remove("test_key_remove");
 
-        Path removeKeyFilePath = Paths.get(WORKING_FOLDER + "/test_key_remove.data");
+        Path removeKeyFilePath = Paths.get(SmartMap.WORKING_FOLDER + "/test_key_remove.data");
         assertFalse(Files.exists(removeKeyFilePath));
 
-        Path otherFilePath = Paths.get(WORKING_FOLDER + "/test_key_remove_other.data");
+        Path otherFilePath = Paths.get(SmartMap.WORKING_FOLDER + "/test_key_remove_other.data");
         assertTrue(Files.exists(otherFilePath));
     }
 
@@ -133,8 +131,8 @@ public class SmartMapTest {
 
     @After
     public void tearDown() throws IOException {
-        Path shardPath = Paths.get(WORKING_FOLDER);
-        Files.list(shardPath).forEach(file -> file.toFile().delete());
+        Path workingFolderPath = Paths.get(SmartMap.WORKING_FOLDER);
+        Files.list(workingFolderPath).forEach(file -> file.toFile().delete());
     }
 
 }

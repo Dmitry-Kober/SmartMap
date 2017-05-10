@@ -14,22 +14,22 @@ import java.nio.file.Paths;
 /**
  * Created by dkober on 24.4.2017 г..
  */
-public class FileSystemShard implements IFileSystemShard {
+public class FileSystemManager implements IFileSystemManager {
 
-    private static final Logger LOG = LoggerFactory.getLogger(FileSystemShard.class);
+    private static final Logger LOG = LoggerFactory.getLogger(FileSystemManager.class);
     private static final String TMP_FILE_SUFFIX = "_tmp";
 
-    private final String shardLocation;
+    private final String workingFolderLocation;
 
-    public FileSystemShard(String shardLocation) {
-        this.shardLocation = shardLocation;
+    public FileSystemManager(String workingFolderLocation) {
+        this.workingFolderLocation = workingFolderLocation;
 
-        LOG.trace("Initializing a File System for the: '{}' shard", shardLocation);
+        LOG.trace("Initializing a File System for the: '{}' workingFolder", workingFolderLocation);
 
         try {
-            Path shardPath = Paths.get(shardLocation);
-            if (!Files.exists(shardPath)) {
-                Files.createDirectories(shardPath);
+            Path workingFolderPath = Paths.get(workingFolderLocation);
+            if (!Files.exists(workingFolderPath)) {
+                Files.createDirectories(workingFolderPath);
             }
         }
         catch (IOException e) {
@@ -41,7 +41,7 @@ public class FileSystemShard implements IFileSystemShard {
     public void restore() {
         try {
             Files
-                .find(Paths.get(shardLocation), Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(".*" + TMP_FILE_SUFFIX))
+                .find(Paths.get(workingFolderLocation), Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(".*" + TMP_FILE_SUFFIX))
                 .forEach(path -> {
                     String absTmpFilePath = path.toFile().getAbsolutePath();
                     Path tmpFilePath = Paths.get(absTmpFilePath);
@@ -68,7 +68,7 @@ public class FileSystemShard implements IFileSystemShard {
                 });
         }
         catch (IOException e) {
-            LOG.error("Cannot restore the '{}' shard from temporary files.", shardLocation, e);
+            LOG.error("Cannot restore the '{}' workingFolder from temporary files.", workingFolderLocation, e);
             throw new RuntimeException(e);
         }
     }
@@ -106,15 +106,15 @@ public class FileSystemShard implements IFileSystemShard {
     }
 
     @Override
-    public File createShardRegister(Path shardPath) {
+    public File createRegister(Path workingFolderPath) {
         try {
             return Files
-                    .find(shardPath, Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(".*data"))
-                    .collect(new PathFileContentCollector(shardPath));
+                    .find(workingFolderPath, Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(".*data"))
+                    .collect(new PathFileContentCollector(workingFolderPath));
         }
         catch (IOException e) {
-            LOG.error("Cannot create a local register for the '{}' shard.", shardLocation, e);
-            return new File(shardLocation + "/local_register_empty" + System.currentTimeMillis());
+            LOG.error("Cannot create a local register for the '{}' workingFolder.", workingFolderLocation, e);
+            return new File(workingFolderLocation + "/local_register_empty" + System.currentTimeMillis());
         }
     }
 
