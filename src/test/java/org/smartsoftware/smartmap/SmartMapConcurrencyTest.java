@@ -2,6 +2,8 @@ package org.smartsoftware.smartmap;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.smartsoftware.smartmap.filesystem.FileSystemManager;
 import org.smartsoftware.smartmap.filesystem.IFileSystemManager;
 
@@ -16,6 +18,8 @@ import static org.junit.Assert.*;
  * Created by dkober on 11.5.2017 г..
  */
 public class SmartMapConcurrencyTest {
+
+    private static final Logger LOG = LoggerFactory.getLogger(SmartMapConcurrencyTest.class);
 
     private ISmartMap smartMap;
     private ScheduledFuture[] futureResults;
@@ -33,12 +37,12 @@ public class SmartMapConcurrencyTest {
         providedIPreparedSmartMapWithDelayedMethod("createOrReplaceFileWithValue", 10000);
         providedIScheduled(
                 new ScheduledCallable<>(() -> {
-                    System.out.println("Putter thread: " + Thread.currentThread().getName());
+                    LOG.trace("Putter thread: {}.", Thread.currentThread().getName());
                     smartMap.put("key", "value".getBytes());
                     return true;
                 }, 1, TimeUnit.SECONDS),
                 new ScheduledCallable<>(() -> {
-                    System.out.println("Getter thread: " + Thread.currentThread().getName());
+                    LOG.trace("Getter thread: {}.", Thread.currentThread().getName());
                     smartMap.get("key");
                     return true;
                 }, 2, TimeUnit.SECONDS)
@@ -52,6 +56,8 @@ public class SmartMapConcurrencyTest {
 
     @Test
     public void shouldCorrectlyResolveConcurrentModificationEventualConsistency() {
+        smartMap = new SmartMap();
+
         Thread thread1 = new Thread(() -> {
             try {
                 smartMap.put("thread_key1", "thread_1_value1".getBytes());
@@ -132,12 +138,12 @@ public class SmartMapConcurrencyTest {
         providedIPreparedSmartMapWithDelayedMethod("createOrReplaceFileWithValue", 80000);
         providedIScheduled(
                 new ScheduledCallable<>(() -> {
-                    System.out.println("Putter thread: " + Thread.currentThread().getName());
+                    LOG.trace("Putter thread: {}.", Thread.currentThread().getName());
                     smartMap.put("key", "value".getBytes());
                     return true;
                 }, 1, TimeUnit.SECONDS),
                 new ScheduledCallable<>(() -> {
-                    System.out.println("Getter thread: " + Thread.currentThread().getName());
+                    LOG.trace("Getter thread: {}.", Thread.currentThread().getName());
                     smartMap.get("other_key");
                     return true;
                 }, 2, TimeUnit.SECONDS)
@@ -195,12 +201,12 @@ public class SmartMapConcurrencyTest {
         IFileSystemManager originalFileSystemManger = new FileSystemManager("repository");
 
         IFileSystemManager delayedPutFileSystemManager = (IFileSystemManager) Proxy.newProxyInstance(IFileSystemManager.class.getClassLoader(), new Class[]{IFileSystemManager.class}, (proxy, method, args) -> {
-            System.out.println(System.currentTimeMillis() + ": the '" + method.getName() + "()' method is about to be invoked by the '" + Thread.currentThread().getName() + "' thread.");
+            LOG.trace("{}: the '{}()' method is about to be invoked by the '{}' thread.", new Object[]{System.currentTimeMillis(),  method.getName(), Thread.currentThread().getName()});
             if (methodName.equals(method.getName())) {
                 Thread.sleep(delay);
             }
             Object result = method.invoke(originalFileSystemManger, args);
-            System.out.println(System.currentTimeMillis() + ": the '" + method.getName() + "()' method returned a result to the '" + Thread.currentThread().getName() + "' thread.");
+            LOG.trace("{}: the '{}()' method returned a result to the '{}' thread.", new Object[] {System.currentTimeMillis(), method.getName(), Thread.currentThread().getName()});
             return result;
         });
 
