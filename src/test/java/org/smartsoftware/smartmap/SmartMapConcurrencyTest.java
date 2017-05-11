@@ -1,5 +1,6 @@
 package org.smartsoftware.smartmap;
 
+import org.junit.Before;
 import org.junit.Test;
 import org.smartsoftware.smartmap.filesystem.FileSystemManager;
 import org.smartsoftware.smartmap.filesystem.IFileSystemManager;
@@ -7,8 +8,9 @@ import org.smartsoftware.smartmap.filesystem.IFileSystemManager;
 import java.lang.reflect.Proxy;
 import java.util.concurrent.*;
 
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.*;
 
 /**
  * Created by dkober on 11.5.2017 г..
@@ -17,11 +19,18 @@ public class SmartMapConcurrencyTest {
 
     private ISmartMap smartMap;
     private ScheduledFuture[] futureResults;
-    private long terminationTime;
+    private volatile long terminationTime;
+
+    @Before
+    public void setUp() {
+        smartMap = null;
+        futureResults = null;
+        terminationTime = 0;
+    }
 
     @Test
-    public void checkPutOverGetPrecedence() {
-        providedIPreparedSmartMapWithDelayedPut();
+    public void checkPutOverGetPrecedenceSameKey() {
+        providedIPreparedSmartMapWithDelayedMethod("createOrReplaceFileWithValue", 10000);
         providedIScheduled(
                 new ScheduledCallable<>(() -> {
                     System.out.println("Putter thread: " + Thread.currentThread().getName());
@@ -35,12 +44,117 @@ public class SmartMapConcurrencyTest {
                 }, 2, TimeUnit.SECONDS)
             );
 
+        afterIWaitFor(2000);
+
         whenIReceiveATerminationTimeOfCallable(1);
-        itAppearsToBeNotLessThan(2000);
+        itAppearsToBeGreaterThan(5000);
     }
 
-    private void itAppearsToBeNotLessThan(long millis) {
+    @Test
+    public void shouldCorrectlyResolveConcurrentModificationEventualConsistency() {
+        Thread thread1 = new Thread(() -> {
+            try {
+                smartMap.put("thread_key1", "thread_1_value1".getBytes());
+                smartMap.put("thread_key2", "thread_1_value2".getBytes());
+                smartMap.put("thread_key3", "thread_1_value3".getBytes());
+                Thread.sleep(1000);
+                smartMap.put("thread_key2", "thread_1_value2_changed_1".getBytes());
+                smartMap.get("thread_key2");
+                smartMap.put("thread_key3", "thread_1_value3_changed_1".getBytes());
+                smartMap.remove("thread_key2");
+                Thread.sleep(1000);
+                smartMap.get("thread_key1");
+                smartMap.get("thread_key2");
+                smartMap.get("thread_key3");
+            }
+            catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        Thread thread2 = new Thread(() -> {
+            try {
+                smartMap.put("thread_key1", "thread_2_value1".getBytes());
+                smartMap.put("thread_key2", "thread_2_value2".getBytes());
+                smartMap.put("thread_key3", "thread_2_value3".getBytes());
+                Thread.sleep(1000);
+                smartMap.put("thread_key2", "thread_2_value2_changed_1".getBytes());
+                smartMap.get("thread_key2");
+                smartMap.put("thread_key3", "thread_2_value3_changed_1".getBytes());
+                smartMap.remove("thread_key2");
+                Thread.sleep(1000);
+                smartMap.get("thread_key1");
+                smartMap.get("thread_key2");
+                smartMap.get("thread_key3");
+            }
+            catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        thread1.start();
+        thread2.start();
+
+        try {
+            thread1.join();
+            thread2.join();
+        }
+        catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        assertThat(
+                new String(smartMap.get("thread_key1")),
+                anyOf(equalTo("thread_1_value1"), equalTo("thread_2_value1"))
+        );
+
+        assertThat(
+                new String(smartMap.get("thread_key2")),
+                equalTo("")
+        );
+
+        assertThat(
+                new String(smartMap.get("thread_key3")),
+                anyOf(equalTo("thread_1_value3_changed_1"), equalTo("thread_2_value3_changed_1"))
+        );
+    }
+
+    private void afterIWaitFor(long delay) {
+        try {
+            Thread.sleep(delay);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    public void parallelGetPutDifferentKey() {
+        providedIPreparedSmartMapWithDelayedMethod("createOrReplaceFileWithValue", 80000);
+        providedIScheduled(
+                new ScheduledCallable<>(() -> {
+                    System.out.println("Putter thread: " + Thread.currentThread().getName());
+                    smartMap.put("key", "value".getBytes());
+                    return true;
+                }, 1, TimeUnit.SECONDS),
+                new ScheduledCallable<>(() -> {
+                    System.out.println("Getter thread: " + Thread.currentThread().getName());
+                    smartMap.get("other_key");
+                    return true;
+                }, 2, TimeUnit.SECONDS)
+        );
+
+        afterIWaitFor(2000);
+
+        whenIReceiveATerminationTimeOfCallable(1);
+        itAppearsToBeLessThan(5000);
+    }
+
+    private void itAppearsToBeGreaterThan(long millis) {
         assertTrue(terminationTime > millis);
+    }
+
+    private void itAppearsToBeLessThan(long millis) {
+        assertTrue(terminationTime < millis);
     }
 
     private void whenIReceiveATerminationTimeOfCallable(int index) {
@@ -77,13 +191,13 @@ public class SmartMapConcurrencyTest {
         }
     }
 
-    private void providedIPreparedSmartMapWithDelayedPut() {
+    private void providedIPreparedSmartMapWithDelayedMethod(String methodName, long delay) {
         IFileSystemManager originalFileSystemManger = new FileSystemManager("repository");
 
         IFileSystemManager delayedPutFileSystemManager = (IFileSystemManager) Proxy.newProxyInstance(IFileSystemManager.class.getClassLoader(), new Class[]{IFileSystemManager.class}, (proxy, method, args) -> {
             System.out.println(System.currentTimeMillis() + ": the '" + method.getName() + "()' method is about to be invoked by the '" + Thread.currentThread().getName() + "' thread.");
-            if ("createOrReplaceFileWithValue".equals(method.getName())) {
-                Thread.sleep(10000);
+            if (methodName.equals(method.getName())) {
+                Thread.sleep(delay);
             }
             Object result = method.invoke(originalFileSystemManger, args);
             System.out.println(System.currentTimeMillis() + ": the '" + method.getName() + "()' method returned a result to the '" + Thread.currentThread().getName() + "' thread.");

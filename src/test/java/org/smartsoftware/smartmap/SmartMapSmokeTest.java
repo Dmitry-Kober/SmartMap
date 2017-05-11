@@ -9,7 +9,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static junit.framework.TestCase.assertFalse;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -58,75 +57,6 @@ public class SmartMapSmokeTest {
         String register = new String(smartMap.list());
         assertTrue(register.contains("list_key_2$list_value_2"));
         assertTrue(register.contains("list_key_1$list_value_1"));
-    }
-
-    @Test
-    public void shouldCorrectlyResolveConcurrentModificationEventualConsistency() {
-        Thread thread1 = new Thread(() -> {
-            try {
-                smartMap.put("thread_key1", "thread_1_value1".getBytes());
-                smartMap.put("thread_key2", "thread_1_value2".getBytes());
-                smartMap.put("thread_key3", "thread_1_value3".getBytes());
-                Thread.sleep(1000);
-                smartMap.put("thread_key2", "thread_1_value2_changed_1".getBytes());
-                smartMap.get("thread_key2");
-                smartMap.put("thread_key3", "thread_1_value3_changed_1".getBytes());
-                smartMap.remove("thread_key2");
-                Thread.sleep(1000);
-                smartMap.get("thread_key1");
-                smartMap.get("thread_key2");
-                smartMap.get("thread_key3");
-            }
-            catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        Thread thread2 = new Thread(() -> {
-            try {
-                smartMap.put("thread_key1", "thread_2_value1".getBytes());
-                smartMap.put("thread_key2", "thread_2_value2".getBytes());
-                smartMap.put("thread_key3", "thread_2_value3".getBytes());
-                Thread.sleep(1000);
-                smartMap.put("thread_key2", "thread_2_value2_changed_1".getBytes());
-                smartMap.get("thread_key2");
-                smartMap.put("thread_key3", "thread_2_value3_changed_1".getBytes());
-                smartMap.remove("thread_key2");
-                Thread.sleep(1000);
-                smartMap.get("thread_key1");
-                smartMap.get("thread_key2");
-                smartMap.get("thread_key3");
-            }
-            catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        thread1.start();
-        thread2.start();
-
-        try {
-            thread1.join();
-            thread2.join();
-        }
-        catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertThat(
-                new String(smartMap.get("thread_key1")),
-                anyOf(equalTo("thread_1_value1"), equalTo("thread_2_value1"))
-        );
-
-        assertThat(
-                new String(smartMap.get("thread_key2")),
-                equalTo("")
-        );
-
-        assertThat(
-                new String(smartMap.get("thread_key3")),
-                anyOf(equalTo("thread_1_value3_changed_1"), equalTo("thread_2_value3_changed_1"))
-        );
     }
 
     @After
