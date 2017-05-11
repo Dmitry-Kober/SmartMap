@@ -1,5 +1,6 @@
 package org.smartsoftware.smartmap;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -7,7 +8,11 @@ import org.slf4j.LoggerFactory;
 import org.smartsoftware.smartmap.filesystem.FileSystemManager;
 import org.smartsoftware.smartmap.filesystem.IFileSystemManager;
 
+import java.io.IOException;
 import java.lang.reflect.Proxy;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.*;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -211,6 +216,12 @@ public class SmartMapConcurrencyTest {
         });
 
         smartMap = new SmartMap(delayedPutFileSystemManager);
+    }
+
+    @After
+    public void tearDown() throws IOException {
+        Path workingFolderPath = Paths.get(SmartMap.WORKING_FOLDER);
+        Files.list(workingFolderPath).forEach(file -> file.toFile().delete());
     }
 
 }
