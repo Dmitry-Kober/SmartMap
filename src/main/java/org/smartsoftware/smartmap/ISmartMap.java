@@ -1,8 +1,5 @@
 package org.smartsoftware.smartmap;
 
-import java.io.File;
-import java.util.Collection;
-
 /**
  * Created by Dmitry on 23.04.2017.
  */

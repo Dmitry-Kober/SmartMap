@@ -21,10 +21,14 @@ public class SmartMap implements ISmartMap {
     private static final Logger LOG = LoggerFactory.getLogger(SmartMap.class);
     private final KeyedReentrantLock<String> locks = new KeyedReentrantLock<>();
 
-    private final IFileSystemManager fileSystem;
+    private final IFileSystemManager fileSystemManager;
 
     public SmartMap() {
-        this.fileSystem = new FileSystemManager(WORKING_FOLDER);
+        this.fileSystemManager = new FileSystemManager(WORKING_FOLDER);
+    }
+
+    public SmartMap(IFileSystemManager fileSystemManager) {
+        this.fileSystemManager = fileSystemManager;
     }
 
     @Override
@@ -34,7 +38,7 @@ public class SmartMap implements ISmartMap {
         try {
             locks.readLock(filePath.intern());
 
-            byte[] value = fileSystem.getValueFrom(Paths.get(filePath));
+            byte[] value = fileSystemManager.getValueFrom(Paths.get(filePath));
             if (value.length != 0) {
                 return value;
             }
@@ -54,7 +58,7 @@ public class SmartMap implements ISmartMap {
         try {
             locks.writeLock(filePath.intern());
 
-            boolean newFileAdded = fileSystem.createOrReplaceFileWithValue(Paths.get(filePath), value);
+            boolean newFileAdded = fileSystemManager.createOrReplaceFileWithValue(Paths.get(filePath), value);
             if ( !newFileAdded ) {
                 LOG.error("Unable to create a new file for the '{}' key.", key);
                 return false;
@@ -74,7 +78,7 @@ public class SmartMap implements ISmartMap {
         try {
             locks.writeLock(filePath.intern());
 
-            boolean filesIsRemoved = fileSystem.removeFile(Paths.get(filePath));
+            boolean filesIsRemoved = fileSystemManager.removeFile(Paths.get(filePath));
             if ( !filesIsRemoved ) {
                 LOG.error("Unable to remove a file for the '{}' key.", key);
                 return false;
@@ -93,7 +97,7 @@ public class SmartMap implements ISmartMap {
 
     @Override
     public byte[] list() {
-        File register = fileSystem.createRegister(Paths.get(WORKING_FOLDER));
+        File register = fileSystemManager.createRegister(Paths.get(WORKING_FOLDER));
         try {
             return Files.readAllBytes(register.toPath());
         }
