@@ -10,6 +10,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.stream.Collectors;
 
 /**
  * Created by dkober on 24.4.2017 г..
@@ -42,29 +43,34 @@ public class FileSystemManager implements IFileSystemManager {
         try {
             Files
                 .find(Paths.get(workingFolderLocation), Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(".*" + TMP_FILE_SUFFIX))
+                .sorted((path1, path2) -> (-1) * path1.toFile().getAbsolutePath().compareTo(path2.toFile().getAbsolutePath())) // descending order
+                .collect(
+                    Collectors.groupingBy(
+                            path -> {
+                                String tmpAbsPath = path.toFile().getAbsolutePath();
+                                return tmpAbsPath.substring(1, tmpAbsPath.lastIndexOf("$"));
+                            }
+                    )
+                )
+                .entrySet().stream()
+                .map(entry -> {
+                    Path targetTmpFile = entry.getValue().remove(0);
+                    entry.getValue().stream().forEach(this::removeFile);
+                    return targetTmpFile;
+                })
                 .forEach(path -> {
                     String absTmpFilePath = path.toFile().getAbsolutePath();
                     Path tmpFilePath = Paths.get(absTmpFilePath);
-                    byte[] tmpValue = new byte[0];
-                    try {
-                        tmpValue = Files.readAllBytes(tmpFilePath);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
 
-                    Path valueFilePath = Paths.get(absTmpFilePath.substring(0, absTmpFilePath.lastIndexOf(TMP_FILE_SUFFIX)));
+                    Path valueFilePath = Paths.get(absTmpFilePath.substring(0, absTmpFilePath.lastIndexOf("$")));
                     try (OutputStream outputStream = Files.newOutputStream(valueFilePath)) {
-                        outputStream.write(tmpValue);
+                        outputStream.write( Files.readAllBytes(tmpFilePath) );
                     }
                     catch (IOException e) {
-                        LOG.error("Unable to create the '{}' temporary file. ", valueFilePath, e);
+                        LOG.error("Unable to move data from the '{}' temporary file. ", valueFilePath, e);
                     }
 
-                    try {
-                        Files.deleteIfExists(tmpFilePath);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
+                    removeFile(tmpFilePath);
                 });
         }
         catch (IOException e) {
@@ -76,31 +82,26 @@ public class FileSystemManager implements IFileSystemManager {
     @Override
     public boolean createOrReplaceFileWithValue(Path path, byte[] value) {
         String absolutePath = path.toFile().getAbsolutePath();
-        try {
-            Path tmpFileAbsPath = Paths.get(absolutePath + TMP_FILE_SUFFIX);
 
-            try (OutputStream outputStream = Files.newOutputStream(tmpFileAbsPath)) {
-                outputStream.write(value);
-            }
-            catch (IOException e) {
-                LOG.error("Unable to create the '{}' temporary file. ", absolutePath, e);
-                return false;
-            }
+        Path tmpFileAbsPath = Paths.get(absolutePath + "$" + System.currentTimeMillis() + TMP_FILE_SUFFIX);
 
-            try (OutputStream outputStream = Files.newOutputStream(path)) {
-                outputStream.write(value);
-            }
-            catch (IOException e) {
-                LOG.error("Unable to enrich the '{}' file. ", absolutePath, e);
-                return false;
-            }
-
-            Files.deleteIfExists(tmpFileAbsPath);
+        try (OutputStream outputStream = Files.newOutputStream(tmpFileAbsPath)) {
+            outputStream.write(value);
         }
         catch (IOException e) {
-            LOG.error("Unable to create the '{}' file. ", absolutePath, e);
+            LOG.error("Unable to create the '{}' temporary file. ", absolutePath, e);
             return false;
         }
+
+        try (OutputStream outputStream = Files.newOutputStream(path)) {
+            outputStream.write(value);
+        }
+        catch (IOException e) {
+            LOG.error("Unable to enrich the '{}' file. ", absolutePath, e);
+            return false;
+        }
+
+        removeFile(tmpFileAbsPath);
 
         return true;
     }
@@ -114,7 +115,7 @@ public class FileSystemManager implements IFileSystemManager {
         }
         catch (IOException e) {
             LOG.error("Cannot create a local register for the '{}' workingFolder.", workingFolderLocation, e);
-            return new File(workingFolderLocation + "/local_register_empty" + System.currentTimeMillis());
+            return new File(workingFolderLocation + "/register_empty" + System.currentTimeMillis());
         }
     }
 

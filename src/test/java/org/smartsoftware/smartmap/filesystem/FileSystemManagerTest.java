@@ -25,18 +25,26 @@ public class FileSystemManagerTest {
 
     @Test
     public void shouldInitializeFileSystemFromTmpFiles() throws IOException {
-        IFileSystemManager fileSystemworkingFolder = new FileSystemManager(WORKING_FOLDER);
+        IFileSystemManager fileSystemManager = new FileSystemManager(WORKING_FOLDER);
 
         String existingDataFilePath = WORKING_FOLDER + "/existing_file.data";
-        createFileWithValue(existingDataFilePath, "existing", "Cannot create an exiting tmp file.");
-        createFileWithValue(WORKING_FOLDER + "/existing_file.data_tmp", "existing_overwritten_from_tmp", "Cannot create an exiting file.");
-        createFileWithValue(WORKING_FOLDER + "/non_existing_file.data_tmp", "non_existing_from_tmp", "Cannot create a non-exiting tmp file.");
+        createFileWithValue(existingDataFilePath, "existing", "Cannot create an exiting data file.");
 
-        fileSystemworkingFolder.restore();
+        // create tmp files with outdated ones
+        createFileWithValue(WORKING_FOLDER + "/existing_file.data$" + (System.currentTimeMillis() - 10) + "_tmp", "existing_overwritten_from_tmp_OUTDATED", "Cannot create an exiting outdated tmp file.");
+        createFileWithValue(WORKING_FOLDER + "/existing_file.data$" + System.currentTimeMillis() + "_tmp", "existing_overwritten_from_tmp", "Cannot create an exiting tmp file.");
+        createFileWithValue(WORKING_FOLDER + "/non_existing_file.data$" + (System.currentTimeMillis() - 10) + "_tmp", "non_existing_from_tmp_OUTDATED", "Cannot create a non-exiting outdated tmp file.");
+        createFileWithValue(WORKING_FOLDER + "/non_existing_file.data$" + System.currentTimeMillis() + "_tmp", "non_existing_from_tmp", "Cannot create a non-exiting tmp file.");
 
-        assertThat(new String(getFileBytes(existingDataFilePath, "")), equalTo("existing_overwritten_from_tmp"));
-        assertThat(new String(getFileBytes(WORKING_FOLDER + "/non_existing_file.data", "")), equalTo("non_existing_from_tmp"));
+        fileSystemManager.restore();
+
+        assertThat(new String(getFileBytes(existingDataFilePath)), equalTo("existing_overwritten_from_tmp"));
+        assertThat(new String(getFileBytes(WORKING_FOLDER + "/non_existing_file.data")), equalTo("non_existing_from_tmp"));
         assertTrue(Files.find(Paths.get(WORKING_FOLDER), Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(".*_tmp")).count() == 0);
+    }
+
+    private byte[] getFileBytes(String path) {
+        return getFileBytes(path, "");
     }
 
     private byte[] getFileBytes(String path, String defaultValue) {
