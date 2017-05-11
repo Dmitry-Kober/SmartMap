@@ -17,7 +17,7 @@ import static org.junit.Assert.assertTrue;
 /**
  * Created by dkober on 10.5.2017 г..
  */
-public class SmartMapTest {
+public class SmartMapSmokeTest {
 
     private ISmartMap smartMap = new SmartMap();
 

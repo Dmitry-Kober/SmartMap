@@ -48,7 +48,7 @@ public class FileSystemManager implements IFileSystemManager {
                     Collectors.groupingBy(
                             path -> {
                                 String tmpAbsPath = path.toFile().getAbsolutePath();
-                                return tmpAbsPath.substring(1, tmpAbsPath.lastIndexOf("$"));
+                                return getValueFilePathFromTmpFile(tmpAbsPath);
                             }
                     )
                 )
@@ -62,7 +62,7 @@ public class FileSystemManager implements IFileSystemManager {
                     String absTmpFilePath = path.toFile().getAbsolutePath();
                     Path tmpFilePath = Paths.get(absTmpFilePath);
 
-                    Path valueFilePath = Paths.get(absTmpFilePath.substring(0, absTmpFilePath.lastIndexOf("$")));
+                    Path valueFilePath = Paths.get(getValueFilePathFromTmpFile(absTmpFilePath));
                     try (OutputStream outputStream = Files.newOutputStream(valueFilePath)) {
                         outputStream.write( Files.readAllBytes(tmpFilePath) );
                     }
@@ -79,11 +79,19 @@ public class FileSystemManager implements IFileSystemManager {
         }
     }
 
+    private String getValueFilePathFromTmpFile(String absTmpFilePath) {
+        return absTmpFilePath.substring(0, absTmpFilePath.lastIndexOf("$"));
+    }
+
+    private String buildTmpFilePath(String absolutePath) {
+        return absolutePath + "$" + System.currentTimeMillis() + TMP_FILE_SUFFIX;
+    }
+
     @Override
     public boolean createOrReplaceFileWithValue(Path path, byte[] value) {
         String absolutePath = path.toFile().getAbsolutePath();
 
-        Path tmpFileAbsPath = Paths.get(absolutePath + "$" + System.currentTimeMillis() + TMP_FILE_SUFFIX);
+        Path tmpFileAbsPath = Paths.get(buildTmpFilePath(absolutePath));
 
         try (OutputStream outputStream = Files.newOutputStream(tmpFileAbsPath)) {
             outputStream.write(value);

@@ -29,7 +29,7 @@ public class SmartMap implements ISmartMap {
 
     @Override
     public byte[] get(String key) {
-        final String filePath = WORKING_FOLDER + "/" + key + ".data";
+        final String filePath = buildDataFilePath(key);
 
         try {
             locks.readLock(filePath.intern());
@@ -49,7 +49,7 @@ public class SmartMap implements ISmartMap {
 
     @Override
     public boolean put(String key, byte[] value) {
-        final String filePath = WORKING_FOLDER + "/" + key + ".data";
+        final String filePath = buildDataFilePath(key);
 
         try {
             locks.writeLock(filePath.intern());
@@ -69,7 +69,7 @@ public class SmartMap implements ISmartMap {
 
     @Override
     public boolean remove(String key) {
-        final String filePath = WORKING_FOLDER + "/" + key + ".data";
+        final String filePath = buildDataFilePath(key);
 
         try {
             locks.writeLock(filePath.intern());
@@ -87,6 +87,10 @@ public class SmartMap implements ISmartMap {
         }
     }
 
+    private String buildDataFilePath(String key) {
+        return WORKING_FOLDER + "/" + key + ".data";
+    }
+
     @Override
     public byte[] list() {
         File register = fileSystem.createRegister(Paths.get(WORKING_FOLDER));
@@ -101,7 +105,7 @@ public class SmartMap implements ISmartMap {
                 Files.deleteIfExists(register.toPath());
             }
             catch (IOException e) {
-                throw new RuntimeException(e);
+                LOG.error("Cannot delete the '{}' register file.", register.getAbsolutePath(), e);
             }
         }
     }
