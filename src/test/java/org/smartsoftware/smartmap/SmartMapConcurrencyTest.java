@@ -1,6 +1,5 @@
 package org.smartsoftware.smartmap;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -8,11 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.smartsoftware.smartmap.filesystem.FileSystemManager;
 import org.smartsoftware.smartmap.filesystem.IFileSystemManager;
 
-import java.io.IOException;
 import java.lang.reflect.Proxy;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.concurrent.*;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -22,46 +17,24 @@ import static org.junit.Assert.*;
 /**
  * Created by dkober on 11.5.2017 г..
  */
-public class SmartMapConcurrencyTest {
+public class SmartMapConcurrencyTest extends SmartMapTest {
 
     private static final Logger LOG = LoggerFactory.getLogger(SmartMapConcurrencyTest.class);
 
-    private ISmartMap smartMap;
+
     private ScheduledFuture[] futureResults;
     private volatile long terminationTime;
 
     @Before
     public void setUp() {
-        smartMap = null;
+        super.setUp();
         futureResults = null;
         terminationTime = 0;
     }
 
     @Test
-    public void checkPutOverGetPrecedenceSameKey() {
-        providedIPreparedSmartMapWithDelayedMethod("createOrReplaceFileWithValue", 10000);
-        providedIScheduled(
-                new ScheduledCallable<>(() -> {
-                    LOG.trace("Putter thread: {}.", Thread.currentThread().getName());
-                    smartMap.put("key", "value".getBytes());
-                    return true;
-                }, 1, TimeUnit.SECONDS),
-                new ScheduledCallable<>(() -> {
-                    LOG.trace("Getter thread: {}.", Thread.currentThread().getName());
-                    smartMap.get("key");
-                    return true;
-                }, 2, TimeUnit.SECONDS)
-            );
-
-        afterIWaitFor(2000);
-
-        whenIReceiveATerminationTimeOfCallable(1);
-        itAppearsToBeGreaterThan(5000);
-    }
-
-    @Test
     public void shouldCorrectlyResolveConcurrentModificationEventualConsistency() {
-        smartMap = new SmartMap();
+        providedIPreparedSmartMap();
 
         Thread thread1 = new Thread(() -> {
             try {
@@ -140,7 +113,7 @@ public class SmartMapConcurrencyTest {
 
     @Test
     public void parallelGetPutDifferentKey() {
-        providedIPreparedSmartMapWithDelayedMethod("createOrReplaceFileWithValue", 80000);
+        providedIPreparedSmartMapWithDelayedMethod("createOrReplaceFileFor", 80000);
         providedIScheduled(
                 new ScheduledCallable<>(() -> {
                     LOG.trace("Putter thread: {}.", Thread.currentThread().getName());
@@ -158,10 +131,6 @@ public class SmartMapConcurrencyTest {
 
         whenIReceiveATerminationTimeOfCallable(1);
         itAppearsToBeLessThan(5000);
-    }
-
-    private void itAppearsToBeGreaterThan(long millis) {
-        assertTrue(terminationTime > millis);
     }
 
     private void itAppearsToBeLessThan(long millis) {
@@ -203,7 +172,7 @@ public class SmartMapConcurrencyTest {
     }
 
     private void providedIPreparedSmartMapWithDelayedMethod(String methodName, long delay) {
-        IFileSystemManager originalFileSystemManger = new FileSystemManager("repository");
+        IFileSystemManager originalFileSystemManger = new FileSystemManager("repository_" + System.currentTimeMillis());
 
         IFileSystemManager delayedPutFileSystemManager = (IFileSystemManager) Proxy.newProxyInstance(IFileSystemManager.class.getClassLoader(), new Class[]{IFileSystemManager.class}, (proxy, method, args) -> {
             LOG.trace("{}: the '{}()' method is about to be invoked by the '{}' thread.", new Object[]{System.currentTimeMillis(),  method.getName(), Thread.currentThread().getName()});
@@ -216,12 +185,6 @@ public class SmartMapConcurrencyTest {
         });
 
         smartMap = new SmartMap(delayedPutFileSystemManager);
-    }
-
-    @After
-    public void tearDown() throws IOException {
-        Path workingFolderPath = Paths.get(SmartMap.WORKING_FOLDER);
-        Files.list(workingFolderPath).forEach(file -> file.toFile().delete());
     }
 
 }

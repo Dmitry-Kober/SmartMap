@@ -54,13 +54,12 @@ public class PathFileContentCollector implements Collector<Path, Map<String, byt
     public BiConsumer<Map<String, byte[]>, Path> accumulator() {
         return (map, filePath) -> {
             String fileName = filePath.toFile().getName();
-            String absValueFilePath = workingFolderPath.toFile().getAbsolutePath() + "/" + fileName;
             try {
-                byte[] value = Files.readAllBytes(Paths.get(absValueFilePath));
+                byte[] value = Files.readAllBytes(filePath);
                 map.put(fileName.substring(0, fileName.lastIndexOf(".data")), value);
             }
             catch (IOException e) {
-                LOG.error("Cannot read the '{}' value file.", absValueFilePath, e);
+                LOG.error("Cannot read the '{}' value file.", filePath.toFile().getAbsolutePath(), e);
             }
 
             if (map.size() == THREAD_REGISTER_FLUSH_LIMIT) {

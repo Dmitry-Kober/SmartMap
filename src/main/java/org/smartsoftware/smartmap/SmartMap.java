@@ -9,14 +9,11 @@ import org.smartsoftware.smartmap.utils.KeyedReentrantLock;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 
 /**
  * Created by dkober on 25.4.2017 г..
  */
 public class SmartMap implements ISmartMap {
-
-    public static final String WORKING_FOLDER = "repository";
 
     private static final Logger LOG = LoggerFactory.getLogger(SmartMap.class);
     private final KeyedReentrantLock<String> locks = new KeyedReentrantLock<>();
@@ -24,7 +21,7 @@ public class SmartMap implements ISmartMap {
     private final IFileSystemManager fileSystemManager;
 
     public SmartMap() {
-        this.fileSystemManager = new FileSystemManager(WORKING_FOLDER);
+        this.fileSystemManager = new FileSystemManager();
     }
 
     public SmartMap(IFileSystemManager fileSystemManager) {
@@ -33,32 +30,21 @@ public class SmartMap implements ISmartMap {
 
     @Override
     public byte[] get(String key) {
-        final String filePath = buildDataFilePath(key);
-
-        try {
-            locks.readLock(filePath.intern());
-
-            byte[] value = fileSystemManager.getValueFrom(Paths.get(filePath));
-            if (value.length != 0) {
-                return value;
-            }
-            else {
-                return new byte[0];
-            }
+        byte[] value = fileSystemManager.getValueFor(key);
+        if (value.length != 0) {
+            return value;
         }
-        finally {
-            locks.readUnlock(filePath);
+        else {
+            return new byte[0];
         }
     }
 
     @Override
     public boolean put(String key, byte[] value) {
-        final String filePath = buildDataFilePath(key);
-
         try {
-            locks.writeLock(filePath.intern());
+            locks.writeLock(key.intern());
 
-            boolean newFileAdded = fileSystemManager.createOrReplaceFileWithValue(Paths.get(filePath), value);
+            boolean newFileAdded = fileSystemManager.createOrReplaceFileFor(key, value);
             if ( !newFileAdded ) {
                 LOG.error("Unable to create a new file for the '{}' key.", key);
                 return false;
@@ -67,18 +53,16 @@ public class SmartMap implements ISmartMap {
             return true;
         }
         finally {
-            locks.writeUnlock(filePath);
+            locks.writeUnlock(key);
         }
     }
 
     @Override
     public boolean remove(String key) {
-        final String filePath = buildDataFilePath(key);
-
         try {
-            locks.writeLock(filePath.intern());
+            locks.writeLock(key.intern());
 
-            boolean filesIsRemoved = fileSystemManager.removeFile(Paths.get(filePath));
+            boolean filesIsRemoved = fileSystemManager.removeFileFor(key);
             if ( !filesIsRemoved ) {
                 LOG.error("Unable to remove a file for the '{}' key.", key);
                 return false;
@@ -87,17 +71,13 @@ public class SmartMap implements ISmartMap {
             return true;
         }
         finally {
-            locks.writeUnlock(filePath);
+            locks.writeUnlock(key);
         }
-    }
-
-    private String buildDataFilePath(String key) {
-        return WORKING_FOLDER + "/" + key + ".data";
     }
 
     @Override
     public byte[] list() {
-        File register = fileSystemManager.createRegister(Paths.get(WORKING_FOLDER));
+        File register = fileSystemManager.createRegister();
         try {
             return Files.readAllBytes(register.toPath());
         }

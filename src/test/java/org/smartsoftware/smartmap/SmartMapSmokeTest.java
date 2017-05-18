@@ -1,9 +1,13 @@
 package org.smartsoftware.smartmap;
 
-import org.junit.After;
 import org.junit.Test;
+import org.smartsoftware.smartmap.filesystem.FileSystemManager;
+import org.smartsoftware.smartmap.filesystem.IFileSystemManager;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -14,43 +18,45 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Created by dkober on 10.5.2017 г..
+ * Created by dkober on 18.5.2017 г..
  */
-public class SmartMapSmokeTest {
-
-    private ISmartMap smartMap = new SmartMap();
+public class SmartMapSmokeTest extends SmartMapTest {
 
     @Test
     public void shouldAddOneKeyValuePair() throws IOException {
+        providedIPreparedSmartMap();
         smartMap.put("test_key_addition", "test_value_addition".getBytes());
 
-        Path filePath = Paths.get(SmartMap.WORKING_FOLDER + "/test_key_addition.data");
+        Path filePath = invokeDataFilePathBuilderMethodFor("test_key_addition");
         assertTrue(Files.exists(filePath));
         assertThat(new String(Files.readAllBytes(filePath)), equalTo("test_value_addition"));
     }
 
     @Test
     public void shouldGetExistingValue() {
+        providedIPreparedSmartMap();
         smartMap.put("test_key_get", "test_value_get".getBytes());
         assertThat(new String(smartMap.get("test_key_get")), equalTo("test_value_get"));
     }
 
     @Test
     public void shouldRemoveExistingValue() {
+        providedIPreparedSmartMap();
         smartMap.put("test_key_remove", "test_value_remove".getBytes());
         smartMap.put("test_key_remove_other", "test_value_remove_other".getBytes());
 
         smartMap.remove("test_key_remove");
 
-        Path removeKeyFilePath = Paths.get(SmartMap.WORKING_FOLDER + "/test_key_remove.data");
+        Path removeKeyFilePath = invokeDataFilePathBuilderMethodFor("test_key_remove");
         assertFalse(Files.exists(removeKeyFilePath));
 
-        Path otherFilePath = Paths.get(SmartMap.WORKING_FOLDER + "/test_key_remove_other.data");
+        Path otherFilePath = invokeDataFilePathBuilderMethodFor("test_key_remove_other");
         assertTrue(Files.exists(otherFilePath));
     }
 
     @Test
     public void shouldListAllKeyValuePairs() throws IOException {
+        providedIPreparedSmartMap();
         smartMap.put("list_key_1", "list_value_1".getBytes());
         smartMap.put("list_key_2", "list_value_2".getBytes());
 
@@ -59,10 +65,25 @@ public class SmartMapSmokeTest {
         assertTrue(register.contains("list_key_1$list_value_1"));
     }
 
-    @After
-    public void tearDown() throws IOException {
-        Path workingFolderPath = Paths.get(SmartMap.WORKING_FOLDER);
-        Files.list(workingFolderPath).forEach(file -> file.toFile().delete());
+    private Path invokeDataFilePathBuilderMethodFor(String key) {
+        try {
+            Method m = FileSystemManager.class.getDeclaredMethod("buildDataFilePath", String.class);
+            m.setAccessible(true);
+            return Paths.get((String) m.invoke(getInternalFileSystemManager(), key));
+        }
+        catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+            throw new RuntimeException(e);
+        }
     }
 
+    private IFileSystemManager getInternalFileSystemManager() {
+        try {
+            Field fileSystemManagerField = smartMap.getClass().getDeclaredField("fileSystemManager");
+            fileSystemManagerField.setAccessible(true);
+            return (IFileSystemManager) fileSystemManagerField.get(smartMap);
+        }
+        catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

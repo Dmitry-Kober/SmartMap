@@ -10,25 +10,32 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.stream.Collectors;
+import java.nio.file.StandardCopyOption;
+import java.util.stream.Stream;
 
 /**
  * Created by dkober on 24.4.2017 г..
  */
 public class FileSystemManager implements IFileSystemManager {
 
+    private static final String DEFAULT_WORKING_FOLDER = "repository";
     private static final Logger LOG = LoggerFactory.getLogger(FileSystemManager.class);
     private static final String TMP_FILE_SUFFIX = "_tmp";
+    private static final int FOLDER_NUMBER = 10;
 
-    private final String workingFolderLocation;
+    private final String workingFolder;
 
-    public FileSystemManager(String workingFolderLocation) {
-        this.workingFolderLocation = workingFolderLocation;
+    public FileSystemManager() {
+        this(DEFAULT_WORKING_FOLDER);
+    }
 
-        LOG.trace("Initializing a File System for the: '{}' workingFolder", workingFolderLocation);
+    public FileSystemManager(String workingFolder) {
+        LOG.trace("Initializing a File System for the: '{}' workingFolder", workingFolder);
+
+        this.workingFolder = workingFolder;
 
         try {
-            Path workingFolderPath = Paths.get(workingFolderLocation);
+            Path workingFolderPath = Paths.get(workingFolder);
             if (!Files.exists(workingFolderPath)) {
                 Files.createDirectories(workingFolderPath);
             }
@@ -38,99 +45,97 @@ public class FileSystemManager implements IFileSystemManager {
         }
     }
 
+    public String getWorkingFolder() {
+        return workingFolder;
+    }
+
     @Override
     public void restore() {
         try {
             Files
-                .find(Paths.get(workingFolderLocation), Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(".*" + TMP_FILE_SUFFIX))
-                .sorted((path1, path2) -> (-1) * path1.toFile().getAbsolutePath().compareTo(path2.toFile().getAbsolutePath())) // descending order
-                .collect(
-                    Collectors.groupingBy(
-                            path -> {
-                                String tmpAbsPath = path.toFile().getAbsolutePath();
-                                return getValueFilePathFromTmpFile(tmpAbsPath);
-                            }
-                    )
-                )
-                .entrySet().stream()
-                .map(entry -> {
-                    Path targetTmpFile = entry.getValue().remove(0);
-                    entry.getValue().stream().forEach(this::removeFile);
-                    return targetTmpFile;
-                })
+                .find(Paths.get(getWorkingFolder()), 1, (path, basicFileAttributes) -> path.toFile().isDirectory() && path.toFile().getName().matches("folder_\\d+"))
                 .forEach(path -> {
-                    String absTmpFilePath = path.toFile().getAbsolutePath();
-                    Path tmpFilePath = Paths.get(absTmpFilePath);
-
-                    Path valueFilePath = Paths.get(getValueFilePathFromTmpFile(absTmpFilePath));
-                    try (OutputStream outputStream = Files.newOutputStream(valueFilePath)) {
-                        outputStream.write( Files.readAllBytes(tmpFilePath) );
+                    try {
+                        Files
+                            .find(path, Integer.MAX_VALUE, (folder, basicFileAttributes) -> folder.toFile().getName().matches(".*" + TMP_FILE_SUFFIX))
+                            .forEach(folder -> {
+                                try {
+                                    Files.delete(folder);
+                                }
+                                catch (IOException e) {
+                                    LOG.error("Cannot remove the '{}' temporary file.", folder.toFile().getAbsolutePath(), e);
+                                }
+                            });
+                    } catch (IOException e) {
+                        LOG.error("Cannot perform housekeeping in the '{}' folder.", path.toFile().getAbsolutePath(), e);
                     }
-                    catch (IOException e) {
-                        LOG.error("Unable to move data from the '{}' temporary file. ", valueFilePath, e);
-                    }
-
-                    removeFile(tmpFilePath);
                 });
+
         }
         catch (IOException e) {
-            LOG.error("Cannot restore the '{}' workingFolder from temporary files.", workingFolderLocation, e);
+            LOG.error("Cannot find working folders.", e);
             throw new RuntimeException(e);
         }
     }
 
-    private String getValueFilePathFromTmpFile(String absTmpFilePath) {
-        return absTmpFilePath.substring(0, absTmpFilePath.lastIndexOf("$"));
-    }
-
-    private String buildTmpFilePath(String absolutePath) {
-        return absolutePath + "$" + System.currentTimeMillis() + TMP_FILE_SUFFIX;
-    }
-
     @Override
-    public boolean createOrReplaceFileWithValue(Path path, byte[] value) {
-        String absolutePath = path.toFile().getAbsolutePath();
-
-        Path tmpFileAbsPath = Paths.get(buildTmpFilePath(absolutePath));
+    public boolean createOrReplaceFileFor(String key, byte[] value) {
+        String dataAbsPath = buildDataFilePath(key);
+        Path tmpFileAbsPath = Paths.get(buildTmpFilePath(dataAbsPath));
 
         try (OutputStream outputStream = Files.newOutputStream(tmpFileAbsPath)) {
             outputStream.write(value);
+
         }
         catch (IOException e) {
-            LOG.error("Unable to create the '{}' temporary file. ", absolutePath, e);
+            LOG.error("Unable to create the '{}' temporary file. ", dataAbsPath, e);
             return false;
         }
 
-        try (OutputStream outputStream = Files.newOutputStream(path)) {
-            outputStream.write(value);
+        try {
+            Files.move(tmpFileAbsPath, Paths.get(dataAbsPath), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            return true;
         }
         catch (IOException e) {
-            LOG.error("Unable to enrich the '{}' file. ", absolutePath, e);
+            LOG.error("Unable to atomically rename the '{}' temporary file. ", dataAbsPath, e);
             return false;
         }
-
-        removeFile(tmpFileAbsPath);
-
-        return true;
     }
 
     @Override
-    public File createRegister(Path workingFolderPath) {
+    public File createRegister() {
         try {
+            Path workingFolderPath = Paths.get(getWorkingFolder());
+            Files
+                .find(workingFolderPath, 1, (path, basicFileAttributes) -> path.toFile().isDirectory() && path.toFile().getName().matches("folder_\\d+"))
+                .flatMap(folder -> {
+                    try {
+                        return Files.find(folder, Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(".*data"));
+                    }
+                    catch (IOException e) {
+                        LOG.error("Cannot build a register for the '' folder.", folder.toFile().getAbsolutePath(), e);
+                        return Stream.empty();
+                    }
+                })
+                .collect(new PathFileContentCollector(workingFolderPath));
+
+
+
             return Files
                     .find(workingFolderPath, Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(".*data"))
                     .collect(new PathFileContentCollector(workingFolderPath));
         }
         catch (IOException e) {
-            LOG.error("Cannot create a local register for the '{}' workingFolder.", workingFolderLocation, e);
-            return new File(workingFolderLocation + "/register_empty" + System.currentTimeMillis());
+            LOG.error("Cannot create a local register for the '{}' workingFolder.", getWorkingFolder(), e);
+            return new File(getWorkingFolder() + "/register_empty" + System.currentTimeMillis());
         }
     }
 
     @Override
-    public boolean removeFile(Path path) {
+    public boolean removeFileFor(String key) {
+        Path path = Paths.get(buildDataFilePath(key));
         try {
-            return Files.deleteIfExists(path);
+            return !Files.exists(path) || Files.deleteIfExists(path);
         }
         catch (IOException e) {
             LOG.error("Unable to remove the '{}' file.", path.toFile().getAbsolutePath(), e);
@@ -139,17 +144,40 @@ public class FileSystemManager implements IFileSystemManager {
     }
 
     @Override
-    public byte[] getValueFrom(Path path) {
-        if ( !Files.exists(path) ) {
+    public byte[] getValueFor(String key) {
+        Path dataFilePath = Paths.get(buildDataFilePath(key));
+        if ( !Files.exists(dataFilePath) ) {
             return new byte[0];
         }
 
         try {
-            return Files.readAllBytes(path);
+            return Files.readAllBytes(dataFilePath);
         }
         catch (IOException e) {
-            LOG.error("Unable to read the '{}' file.", path.toFile().getAbsolutePath(), e);
+            LOG.error("Unable to read the '{}' file.", dataFilePath.toFile().getAbsolutePath(), e);
             return new byte[0];
         }
+    }
+
+    private static String buildTmpFilePath(String absolutePath) {
+        return absolutePath + "$" + System.currentTimeMillis() + TMP_FILE_SUFFIX;
+    }
+
+    private Path evaluateFolderFor(String key) {
+        Path path =  Paths.get(getWorkingFolder() + "/folder_" + Math.abs(key.hashCode()) % FOLDER_NUMBER);
+        if ( !Files.exists(path) ) {
+            try {
+                Files.createDirectories(path);
+            }
+            catch (IOException e) {
+                LOG.error("Cannot create a folder for the '{}' key.", key);
+                throw new RuntimeException(e);
+            }
+        }
+        return path;
+    }
+
+    private String buildDataFilePath(String key) {
+        return evaluateFolderFor(key).toFile().getAbsolutePath() + "/" + key + ".data";
     }
 }
