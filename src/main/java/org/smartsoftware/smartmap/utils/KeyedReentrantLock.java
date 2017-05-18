@@ -13,18 +13,14 @@ public class KeyedReentrantLock<T> {
     private ConcurrentMap<T, Lock> lockMap = new ConcurrentHashMap<>();
 
     public void writeLock(T key) {
-        Lock lock = lockMap.get(key);
-        if (lock != null) {
-            lock.lock();
-            return;
+        Lock lock = new ReentrantLock();
+        Lock existingLock = lockMap.putIfAbsent(key, lock);
+
+        if (existingLock != null) {
+            lock = existingLock;
         }
 
-        Lock newLock = new ReentrantLock();
-        newLock.lock();
-        Lock prevLock = lockMap.putIfAbsent(key, newLock);
-        if (prevLock != null) {
-            writeLock(key);
-        }
+        lock.lock();
     }
 
     public void writeUnlock(T key) {

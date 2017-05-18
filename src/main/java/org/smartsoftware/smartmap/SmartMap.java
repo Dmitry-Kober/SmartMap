@@ -22,10 +22,12 @@ public class SmartMap implements ISmartMap {
 
     public SmartMap() {
         this.fileSystemManager = new FileSystemManager();
+        fileSystemManager.restore();
     }
 
     public SmartMap(IFileSystemManager fileSystemManager) {
         this.fileSystemManager = fileSystemManager;
+        fileSystemManager.restore();
     }
 
     @Override

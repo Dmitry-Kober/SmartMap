@@ -22,6 +22,7 @@ public class FileSystemManager implements IFileSystemManager {
     private static final Logger LOG = LoggerFactory.getLogger(FileSystemManager.class);
     private static final String TMP_FILE_SUFFIX = "_tmp";
     private static final int FOLDER_NUMBER = 10;
+    private static final int MAX_ATTEMPTS = 10;
 
     private final String workingFolder;
 
@@ -37,7 +38,10 @@ public class FileSystemManager implements IFileSystemManager {
         try {
             Path workingFolderPath = Paths.get(workingFolder);
             if (!Files.exists(workingFolderPath)) {
-                Files.createDirectories(workingFolderPath);
+                Path directories = Files.createDirectories(workingFolderPath);
+                directories.toFile().setReadable(true, true);
+                directories.toFile().setWritable(true, true);
+                directories.toFile().setExecutable(true, true);
             }
         }
         catch (IOException e) {
@@ -85,21 +89,30 @@ public class FileSystemManager implements IFileSystemManager {
 
         try (OutputStream outputStream = Files.newOutputStream(tmpFileAbsPath)) {
             outputStream.write(value);
-
         }
         catch (IOException e) {
             LOG.error("Unable to create the '{}' temporary file. ", dataAbsPath, e);
             return false;
         }
 
-        try {
-            Files.move(tmpFileAbsPath, Paths.get(dataAbsPath), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            return true;
+        int counter = 0;
+        while (counter++ < MAX_ATTEMPTS) {
+            try {
+                Files.move(tmpFileAbsPath, Paths.get(dataAbsPath), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                return true;
+            }
+            catch (IOException e) {
+                LOG.error("Unable to atomically rename the '{}' temporary file. Attempt {} of {}.", dataAbsPath, counter, MAX_ATTEMPTS, e);
+                try {
+                    Thread.sleep(100);
+                }
+                catch (InterruptedException e1) {
+                    LOG.error("Interrupted while waiting for renaming the '{}' temporary file. Attempt {} of {}", dataAbsPath, counter, MAX_ATTEMPTS, e);
+                    throw new RuntimeException(e1);
+                }
+            }
         }
-        catch (IOException e) {
-            LOG.error("Unable to atomically rename the '{}' temporary file. ", dataAbsPath, e);
-            return false;
-        }
+        return false;
     }
 
     @Override
@@ -119,8 +132,6 @@ public class FileSystemManager implements IFileSystemManager {
                 })
                 .collect(new PathFileContentCollector(workingFolderPath));
 
-
-
             return Files
                     .find(workingFolderPath, Integer.MAX_VALUE, (path, basicFileAttributes) -> path.toFile().getName().matches(".*data"))
                     .collect(new PathFileContentCollector(workingFolderPath));
@@ -134,13 +145,19 @@ public class FileSystemManager implements IFileSystemManager {
     @Override
     public boolean removeFileFor(String key) {
         Path path = Paths.get(buildDataFilePath(key));
-        try {
-            return !Files.exists(path) || Files.deleteIfExists(path);
+        if (Files.exists(path)) {
+            int counter = 0;
+            while (counter++ < MAX_ATTEMPTS) {
+                try {
+                    Files.deleteIfExists(path);
+                    return true;
+                }
+                catch (IOException e) {
+                    LOG.error("Unable to remove the '{}' file. Attempt {} of {}.", path.toFile().getAbsolutePath(), counter, MAX_ATTEMPTS, e);
+                }
+            }
         }
-        catch (IOException e) {
-            LOG.error("Unable to remove the '{}' file.", path.toFile().getAbsolutePath(), e);
-            return false;
-        }
+        return false;
     }
 
     @Override
@@ -167,7 +184,10 @@ public class FileSystemManager implements IFileSystemManager {
         Path path =  Paths.get(getWorkingFolder() + "/folder_" + Math.abs(key.hashCode()) % FOLDER_NUMBER);
         if ( !Files.exists(path) ) {
             try {
-                Files.createDirectories(path);
+                Path directories = Files.createDirectories(path);
+                directories.toFile().setReadable(true, true);
+                directories.toFile().setWritable(true, true);
+                directories.toFile().setExecutable(true, true);
             }
             catch (IOException e) {
                 LOG.error("Cannot create a folder for the '{}' key.", key);

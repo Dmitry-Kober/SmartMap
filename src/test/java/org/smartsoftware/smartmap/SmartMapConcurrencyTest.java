@@ -175,12 +175,12 @@ public class SmartMapConcurrencyTest extends SmartMapTest {
         IFileSystemManager originalFileSystemManger = new FileSystemManager("repository_" + System.currentTimeMillis());
 
         IFileSystemManager delayedPutFileSystemManager = (IFileSystemManager) Proxy.newProxyInstance(IFileSystemManager.class.getClassLoader(), new Class[]{IFileSystemManager.class}, (proxy, method, args) -> {
-            LOG.trace("{}: the '{}()' method is about to be invoked by the '{}' thread.", new Object[]{System.currentTimeMillis(),  method.getName(), Thread.currentThread().getName()});
+            LOG.trace("{}: the '{}()' method is about to be invoked by the '{}' thread.", System.currentTimeMillis(),  method.getName(), Thread.currentThread().getName());
             if (methodName.equals(method.getName())) {
                 Thread.sleep(delay);
             }
             Object result = method.invoke(originalFileSystemManger, args);
-            LOG.trace("{}: the '{}()' method returned a result to the '{}' thread.", new Object[] {System.currentTimeMillis(), method.getName(), Thread.currentThread().getName()});
+            LOG.trace("{}: the '{}()' method returned a result to the '{}' thread.", System.currentTimeMillis(), method.getName(), Thread.currentThread().getName());
             return result;
         });
 
